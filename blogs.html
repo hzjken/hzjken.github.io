@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blog — Ken Huang</title>
+<meta name="description" content="Learning notes and essays on LLMs, retrieval, evals and fine-tuning.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="theme.js"></script>
+</head>
+<body>
+<div class="layout">
+
+  <aside class="sidebar" data-page="blog"></aside>
+
+  <main class="main">
+    <div class="page-head">
+      <div>
+        <div class="eyebrow" style="margin-bottom:10px">Writing</div>
+        <h1 class="page-title">Blogs &amp; Notes</h1>
+      </div>
+      <div class="search"><span>⌕</span><input id="q" type="search" placeholder="Search posts…" autocomplete="off"></div>
+    </div>
+
+    <div class="filter-row" id="filters"><!--FILTERS:START--><!--FILTERS:END--></div>
+
+    <div id="posts"><!--POSTS:START--><!--POSTS:END--></div>
+    <p class="no-results" id="noResults">No posts match your search.</p>
+  </main>
+
+</div>
+
+<script>
+(function () {
+  var q = document.getElementById('q');
+  var chips = [].slice.call(document.querySelectorAll('#filters .chip'));
+  var rows = [].slice.call(document.querySelectorAll('#posts .post-row'));
+  var noResults = document.getElementById('noResults');
+  var activeTag = 'all';
+
+  function apply() {
+    var term = (q.value || '').trim().toLowerCase();
+    var shown = 0;
+    rows.forEach(function (r) {
+      var tags = (r.getAttribute('data-tags') || '').toLowerCase();
+      var title = (r.getAttribute('data-title') || '').toLowerCase();
+      var matchTag = activeTag === 'all' || tags.indexOf(activeTag.toLowerCase()) !== -1;
+      var matchTerm = !term || title.indexOf(term) !== -1 || tags.indexOf(term) !== -1;
+      var show = matchTag && matchTerm;
+      r.style.display = show ? '' : 'none';
+      if (show) shown++;
+    });
+    noResults.style.display = shown ? 'none' : 'block';
+  }
+
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () {
+      chips.forEach(function (x) { x.classList.remove('active'); });
+      c.classList.add('active');
+      activeTag = c.getAttribute('data-tag');
+      apply();
+    });
+  });
+  q.addEventListener('input', apply);
+})();
+</script>
+</body>
+</html>

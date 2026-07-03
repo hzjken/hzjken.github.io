@@ -1,0 +1,67 @@
+name: Deploy site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deploy at a time. Let an in-flight deployment finish rather than
+# cancelling it (cancelling can leave a Pages deploy in a failed state).
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install renderer deps
+        run: python3 -m pip install --quiet markdown
+
+      - name: Build site (render blogs, inline sidebar)
+        run: |
+          rsync -a \
+            --exclude='.git' --exclude='.github' --exclude='_site' \
+            --exclude='.venv' --exclude='.vscode' --exclude='.jekyll-cache' \
+            --exclude='.DS_Store' \
+            ./ ./_site/
+          cd _site
+          python3 render_blogs.py     # blogs/*.md|*.html -> post pages + list + teasers
+          python3 sync-sidebar.py     # inline the shared sidebar into every page
+          # drop build-only sources from the published output
+          rm -rf blogs render_blogs.py sync-sidebar.py sidebar.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./_site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy1.outputs.page_url || steps.deploy2.outputs.page_url || steps.deploy3.outputs.page_url }}
+    steps:
+      # GitHub's Pages deploy API is intermittently flaky ("Deployment failed,
+      # try again later"). Retry up to 3 times before actually failing.
+      - id: deploy1
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - if: steps.deploy1.outcome == 'failure'
+        run: sleep 15
+      - id: deploy2
+        if: steps.deploy1.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        run: sleep 30
+      - id: deploy3
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        uses: actions/deploy-pages@v4

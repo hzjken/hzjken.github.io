@@ -1,0 +1,58 @@
+<!--
+title: An example HTML post
+date: 2026-07-01
+tags: Example, HTML
+description: A mocked standalone HTML document, embedded via iframe — this is the .html post format.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Example HTML Post</title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 820px; margin: 0 auto;
+         padding: 40px 20px; background: #f8f9fa; color: #1a1a2e; line-height: 1.7; }
+  h1 { text-align: center; font-size: 1.9rem; margin: 0 0 6px; }
+  .subtitle { text-align: center; color: #666; margin-bottom: 40px; font-size: 1rem; }
+  .card { background: #fff; border-radius: 16px; padding: 28px 32px; margin-bottom: 22px;
+          box-shadow: 0 2px 12px rgba(0,0,0,.07); }
+  .card h2 { margin: 0 0 10px; font-size: 1.2rem; display: flex; align-items: center; gap: 12px; }
+  .num { background: #2563eb; color: #fff; border-radius: 50%; width: 30px; height: 30px;
+         display: inline-flex; align-items: center; justify-content: center; font-size: .9rem; flex-shrink: 0; }
+  .card p { margin: 0; color: #444; }
+  code { background: #eef1f6; padding: 2px 6px; border-radius: 5px; font-size: .9em; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+  .chip { background: #eef2ff; color: #2563eb; border-radius: 999px; padding: 6px 14px; font-size: .85rem; }
+</style>
+</head>
+<body>
+  <h1>An Example HTML Post</h1>
+  <p class="subtitle">Anything you can build in a self-contained HTML file, you can publish as a post.</p>
+
+  <div class="card">
+    <h2><span class="num">1</span> This whole page is one file</h2>
+    <p>Everything here — layout, colors, spacing — lives in a single standalone HTML document
+       with its own <code>&lt;style&gt;</code>. The blog engine loads it inside an <code>&lt;iframe&gt;</code>,
+       so its styles never collide with the rest of the site, and the post frame auto-sizes to fit.</p>
+  </div>
+
+  <div class="card">
+    <h2><span class="num">2</span> Use it for anything interactive or visual</h2>
+    <p>Diagrams, animations, small demos, charts, custom layouts — if it renders in a browser,
+       it works here. Replace this file's contents with your own and keep the frontmatter comment
+       at the top.</p>
+    <div class="row">
+      <span class="chip">diagrams</span>
+      <span class="chip">demos</span>
+      <span class="chip">visual explainers</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="num">3</span> The only rule</h2>
+    <p>Start the file with the frontmatter comment (<code>title</code>, <code>date</code>,
+       <code>tags</code>, <code>description</code>), then write your standalone HTML below it.
+       That's the entire format.</p>
+  </div>
+</body>
+</html>

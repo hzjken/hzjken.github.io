@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projects — Ken Huang</title>
+<meta name="description" content="Open-source projects by Ken Huang.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="theme.js"></script>
+<script src="projects.js" defer></script>
+</head>
+<body>
+<div class="layout">
+
+  <aside class="sidebar" data-page="projects"></aside>
+
+  <main class="main">
+    <div class="proj-head">
+      <div>
+        <div class="eyebrow" style="margin-bottom:10px">Open source</div>
+        <h1 class="page-title" style="margin-bottom:8px">Projects</h1>
+        <p style="margin:0;font-size:14.5px;color:var(--muted)">A snapshot of my public GitHub repositories.</p>
+      </div>
+      <span class="synced"><span class="dot"></span>Synced from GitHub</span>
+    </div>
+
+    <div class="project-grid" id="project-grid" aria-busy="true">
+      <p class="proj-note">Loading repositories from GitHub…</p>
+    </div>
+    <noscript>
+      <p class="proj-note">Enable JavaScript to see live repositories, or browse them on
+        <a href="https://github.com/hzjken?tab=repositories" target="_blank" rel="noopener">GitHub →</a></p>
+    </noscript>
+  </main>
+
+</div>
+</body>
+</html>
