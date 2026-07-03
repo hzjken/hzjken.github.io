@@ -13,7 +13,7 @@ inlines the shared sidebar; GitHub Actions runs it automatically on deploy.
 - `sync-sidebar.py` — inlines `sidebar.html` into every page (run by CI; run it yourself to preview)
 - `styles.css` — all styling + light/dark tokens (blue accent)
 - `theme.js` — persistent light/dark toggle + auto-sizing embeds
-- `assets/` — avatar image
+- `assets/` — avatar image + `favicon.svg` (the browser-tab / bookmark icon)
 - `.github/workflows/pages.yml` — builds (render blogs + inline sidebar) and deploys to GitHub Pages
 
 ## The sidebar is shared (edit it in one place)
