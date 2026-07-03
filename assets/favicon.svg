@@ -1,14 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Ken Huang">
-  <rect width="100" height="100" rx="24" fill="#2563eb"/>
-  <rect x="15" y="18" width="70" height="64" rx="11" fill="none" stroke="#ffffff" stroke-width="3.2"/>
-  <g fill="#ffffff">
-    <circle cx="25" cy="28" r="2.6"/>
-    <circle cx="34" cy="28" r="2.6"/>
-    <circle cx="43" cy="28" r="2.6"/>
-  </g>
-  <line x1="15" y1="37" x2="85" y2="37" stroke="#ffffff" stroke-width="3.2"/>
-  <g stroke="#ffffff" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <path d="M41 47 V71"/>
-    <path d="M60 47 L44 59 L60 71"/>
+  <circle cx="50" cy="50" r="50" fill="#2563eb"/>
+  <g stroke="#ffffff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M39 30 V70"/>
+    <path d="M65 30 L41 50 L65 70"/>
   </g>
 </svg>
