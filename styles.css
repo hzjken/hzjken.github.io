@@ -116,6 +116,11 @@ a { color:inherit; }
   font-size:13.5px; font-family:inherit; width:170px; }
 
 /* ---------- home ---------- */
+.hero { display:grid; grid-template-columns:1fr 304px; gap:28px;
+  align-items:stretch; margin-bottom:8px; }
+.hero-copy { min-width:0; display:flex; flex-direction:column; margin-right:32px; }
+.hero .hero-title { margin:64px 0 auto; text-wrap:pretty; }
+.hero-globe { display:block; width:280px; height:270px; align-self:start; justify-self:start; }
 .hero-title { margin:0 0 22px; font-family:var(--display); font-size:clamp(30px, 1.4vw + 24px, 46px);
   line-height:1.14; font-weight:600; letter-spacing:-.02em; max-width:100%; text-wrap:balance; }
 .lead { margin:0 0 16px; font-size:clamp(15.5px, 0.35vw + 14.5px, 18px); line-height:1.65;
@@ -242,6 +247,9 @@ code.inline { font-family:var(--mono); font-size:13.5px; background:var(--panel)
   .nav { flex-direction:row; margin-top:0; flex-wrap:wrap; }
   .sidebar-foot { margin-top:0; padding-top:0; border-top:none; width:100%; flex-basis:100%; }
   .main { padding:34px 24px; }
+  .hero { grid-template-columns:1fr; gap:8px; }
+  .hero-copy { order:1; margin-right:0; }
+  .hero-globe { order:2; height:320px; width:100%; }
   .project-grid { grid-template-columns:1fr; }
   .article h1 { font-size:30px; }
   .sidebar-toggle { display:none; }
