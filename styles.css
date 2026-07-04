@@ -247,7 +247,7 @@ code.inline { font-family:var(--mono); font-size:13.5px; background:var(--panel)
   .nav { flex-direction:row; margin-top:0; flex-wrap:wrap; }
   .sidebar-foot { margin-top:0; padding-top:0; border-top:none; width:100%; flex-basis:100%; }
   .main { padding:34px 24px; }
-  .hero { grid-template-columns:1fr; gap:8px; }
+  .hero { grid-template-columns:1fr; gap:22px; margin-bottom:22px; }
   .hero-copy { order:1; margin-right:0; }
   .hero-globe { order:2; height:320px; width:100%; }
   .project-grid { grid-template-columns:1fr; }
