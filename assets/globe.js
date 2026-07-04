@@ -64,14 +64,30 @@
       this._rotY = -this.cities[0].lon*DEG - 0.12;
       this._tilt = 0.1;
       this._bindDrag();
+      this._t0 = performance.now();
+      this._last = 0;
+      this._frameMs = 1000 / 45;   // cap animation at ~45fps
       this._ro = new ResizeObserver(() => this._resize());
       this._ro.observe(this);
       this._resize();
-      this._t0 = performance.now();
-      const loop = () => { this._draw(); this._raf = requestAnimationFrame(loop); };
-      loop();
+      // only animate while the globe is actually on screen
+      this._io = new IntersectionObserver((es) => {
+        if (es[0].isIntersecting) this._start(); else this._stop();
+      }, { threshold: 0 });
+      this._io.observe(this);
     }
-    disconnectedCallback() { if (this._raf) cancelAnimationFrame(this._raf); if (this._ro) this._ro.disconnect(); }
+    _start() {
+      if (this._raf) return;
+      const loop = (ts) => {
+        this._raf = requestAnimationFrame(loop);
+        if (ts - this._last < this._frameMs) return;
+        this._last = ts;
+        this._draw();
+      };
+      this._raf = requestAnimationFrame(loop);
+    }
+    _stop() { if (this._raf) { cancelAnimationFrame(this._raf); this._raf = 0; } }
+    disconnectedCallback() { this._stop(); if (this._ro) this._ro.disconnect(); if (this._io) this._io.disconnect(); }
     refresh() { this._resize(); }
 
     _resize() {
@@ -111,12 +127,13 @@
       const cx=this._cx, cy=this._cy, R=this._R;
       const accentP = dark ? '#8ab4ff' : '#2563eb', accentS = dark ? '#6f8fc4' : '#7096d8';
       const t = (performance.now()-this._t0)/1000;
+      // Cached static layer (sphere + land dots): the ~4k land dots only move when
+      // the view changes, so rebuild them only on drag/resize/theme change and blit
+      // the rest of the time. Keeps idle frames cheap (was the main CPU/heat cost).
+      const key = W+'x'+H+'|'+this._rotY.toFixed(4)+'|'+this._tilt.toFixed(4)+'|'+(dark?'d':'l');
+      if (key !== this._landKey) { this._buildLand(W, H, dark, dpr); this._landKey = key; }
       ctx.clearRect(0,0,W,H);
-      // sphere
-      ctx.fillStyle = dark?'rgba(30,50,90,0.16)':'rgba(37,99,235,0.05)'; ctx.beginPath(); ctx.arc(cx,cy,R,0,6.2832); ctx.fill();
-      ctx.strokeStyle = dark?'rgba(120,150,210,0.16)':'rgba(37,99,235,0.14)'; ctx.lineWidth=1*dpr; ctx.beginPath(); ctx.arc(cx,cy,R,0,6.2832); ctx.stroke();
-      // land dots
-      for (let i=0;i<this.pts.length;i++){ const p=this._proj(this.pts[i][0],this.pts[i][1]); if(p[2]<=0)continue; const a=(dark?0.20:0.18)+p[2]*(dark?0.48:0.42); ctx.fillStyle=(dark?'rgba(130,165,230,':'rgba(37,99,235,')+a.toFixed(2)+')'; ctx.beginPath(); ctx.arc(p[0],p[1],(0.8+p[2]*1.05)*dpr,0,6.2832); ctx.fill(); }
+      ctx.drawImage(this._lc, 0, 0);
       // network path
       if (network && this.path.length>1) for (let k=0;k<this.path.length-1;k++) this._arc(ctx, this.cities[this.path[k]], this.cities[this.path[k+1]], t, k, dark, accentP, dpr, W);
       // markers (secondary first, primary last)
@@ -125,6 +142,18 @@
       // hint
       ctx.font=(9.5*dpr)+"px 'IBM Plex Mono', ui-monospace, monospace"; ctx.textBaseline='alphabetic'; ctx.textAlign='left';
       ctx.fillStyle=dark?'rgba(140,166,200,0.6)':'rgba(122,134,156,0.7)'; ctx.fillText('⟲ DRAG TO ROTATE', cx-R, cy+R+16*dpr);
+    }
+    _buildLand(W, H, dark, dpr) {
+      if (!this._lc) this._lc = document.createElement('canvas');
+      if (this._lc.width !== W || this._lc.height !== H) { this._lc.width = W; this._lc.height = H; }
+      const g = this._lc.getContext('2d');
+      const cx=this._cx, cy=this._cy, R=this._R;
+      g.clearRect(0,0,W,H);
+      // sphere
+      g.fillStyle = dark?'rgba(30,50,90,0.16)':'rgba(37,99,235,0.05)'; g.beginPath(); g.arc(cx,cy,R,0,6.2832); g.fill();
+      g.strokeStyle = dark?'rgba(120,150,210,0.16)':'rgba(37,99,235,0.14)'; g.lineWidth=1*dpr; g.beginPath(); g.arc(cx,cy,R,0,6.2832); g.stroke();
+      // land dots
+      for (let i=0;i<this.pts.length;i++){ const p=this._proj(this.pts[i][0],this.pts[i][1]); if(p[2]<=0)continue; const a=(dark?0.20:0.18)+p[2]*(dark?0.48:0.42); g.fillStyle=(dark?'rgba(130,165,230,':'rgba(37,99,235,')+a.toFixed(2)+')'; g.beginPath(); g.arc(p[0],p[1],(0.8+p[2]*1.05)*dpr,0,6.2832); g.fill(); }
     }
     _marker(ctx, city, t, dark, accentP, accentS, dpr, W) {
       const sp=this._proj(city.lon,city.lat); if(sp[2]<=0)return;
