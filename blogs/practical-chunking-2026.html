@@ -1,0 +1,1161 @@
+<!--
+title: Practical Chunking Techniques as of 2026
+date: 2026-07-07
+tags: RAG, Chunking, Retrieval
+description: A practical and visual field guide to the chunking techniques that actually work in production in 2026 — what to cut, and how to give each chunk the context it needs.
+-->
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practical Chunking Techniques as of 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- theme tokens (mirrors the site) ---------- */
+:root{
+  --bg:#fafafa; --surface:#ffffff; --panel:#f2f3f5;
+  --fg:#101318; --muted:#5a616d; --faint:#8b93a1;
+  --border:#e6e8ec; --accent:#2563eb; --accent-soft:#e6effb;
+  /* semantic cluster palette */
+  --c1:#16a34a; --c2:#2563eb; --c3:#0d9488; --c4:#ea580c; --c5:#7c3aed;
+  --cn:#b6bcc6; --cw:#ffffff; --cw-bd:#cfd4dc;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;
+  --display:'Space Grotesk',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+html[data-theme="dark"]{
+  --bg:#0b0d11; --surface:#12151b; --panel:#161a21;
+  --fg:#e9ebef; --muted:#949bab; --faint:#6c7686;
+  --border:#222732; --accent:#60a5fa; --accent-soft:#16223c;
+  --c1:#22c55e; --c2:#3b82f6; --c3:#2dd4bf; --c4:#f97316; --c5:#a78bfa;
+  --cn:#454b57; --cw:#e8ecf2; --cw-bd:#aeb6c2;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;}
+body{
+  background:var(--bg); color:var(--fg);
+  font-family:var(--sans); line-height:1.62; font-size:16.5px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:880px; margin:0 auto; padding:8px 20px 60px;}
+
+/* ---------- typography ---------- */
+h2{font-family:var(--display); font-weight:600; font-size:26px; line-height:1.2;
+   margin:52px 0 6px; letter-spacing:-.2px;}
+h2 .kicker{display:block; font-family:var(--mono); font-size:12.5px; font-weight:500;
+   letter-spacing:1.2px; text-transform:uppercase; color:var(--accent); margin-bottom:8px;}
+h3{font-family:var(--display); font-weight:600; font-size:19px; margin:30px 0 4px;}
+p{margin:12px 0;}
+a{color:var(--accent);}
+strong{font-weight:600;}
+.lead{font-size:19px; line-height:1.6; color:var(--fg);}
+.muted{color:var(--muted);}
+code{font-family:var(--mono); font-size:.9em; background:var(--panel);
+  border:1px solid var(--border); border-radius:5px; padding:1px 6px;}
+hr{border:none; border-top:1px solid var(--border); margin:44px 0;}
+
+/* ---------- boxes / callouts ---------- */
+.tldr{background:var(--panel); border:1px solid var(--border); border-radius:14px;
+  padding:18px 22px; margin:22px 0 8px;}
+.tldr h4{margin:0 0 6px; font-family:var(--mono); font-size:12.5px; letter-spacing:1px;
+  text-transform:uppercase; color:var(--accent);}
+.tldr p{margin:6px 0;}
+.note{border-left:3px solid var(--accent); background:var(--accent-soft);
+  border-radius:0 10px 10px 0; padding:12px 18px; margin:20px 0; font-size:15.5px;}
+.note b{color:var(--accent);}
+
+/* ---------- generic diagram shells ---------- */
+.diagram{background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  padding:24px; margin:22px 0;}
+.flow{display:flex; flex-wrap:wrap; align-items:stretch; gap:10px; justify-content:center;}
+.fbox{flex:1 1 130px; min-width:120px; background:var(--panel); border:1px solid var(--border);
+  border-radius:12px; padding:14px 12px; text-align:center; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:10px;}
+.fbox .ficon{font-size:22px;}
+.fcap{font-size:13px; color:var(--muted); line-height:1.35;}
+.arrow{display:flex; align-items:center; color:var(--faint); font-size:22px; font-weight:700;}
+@media(max-width:640px){ .arrow{transform:rotate(90deg);} .fbox{flex-basis:100%;} }
+
+/* mini document with fake text lines */
+.doc-mini{gap:6px;}
+.doc-lines{display:flex; flex-direction:column; gap:4px; width:70px;}
+.doc-lines i{height:5px; border-radius:3px; background:var(--faint); opacity:.5;}
+.doc-lines i:nth-child(2){width:80%;} .doc-lines i:nth-child(4){width:60%;}
+.chips-row{display:flex; gap:5px;}
+.chips-row i{width:16px; height:22px; border-radius:4px;}
+.dots-row{display:flex; gap:6px;}
+.dots-row i{width:11px; height:11px; border-radius:50%; background:var(--accent); opacity:.75;}
+
+/* ---------- section 2 compare ---------- */
+.compare{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:22px 0;}
+.compare .col{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px 22px;}
+.compare h4{margin:0 0 4px; font-family:var(--display); font-size:17px;}
+.compare .tag{font-family:var(--mono); font-size:12px; color:var(--muted);}
+.compare ul{margin:12px 0 0; padding-left:18px;}
+.compare li{margin:6px 0; font-size:15px;}
+@media(max-width:640px){ .compare{grid-template-columns:1fr;} }
+
+/* ---------- section 3 basic demos ---------- */
+.tokgrid{display:grid; grid-template-columns:repeat(11,1fr); gap:6px; margin:6px 0;}
+.tok{height:30px; border-radius:6px; background:var(--panel); border:1px solid var(--border);
+  display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--muted);}
+.tok.broken{background:repeating-linear-gradient(45deg,var(--c4),var(--c4) 4px,transparent 4px,transparent 8px);
+  border-color:var(--c4);}
+.win{height:26px; border-radius:6px; display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:600; color:#fff; margin-top:6px;}
+.win.w1{grid-column:1/6; background:var(--c2);}
+.win.w2{grid-column:4/9; background:var(--c1);}
+.win.w3{grid-column:7/12; background:var(--c5);}
+.sent-row{display:flex; align-items:center; flex-wrap:wrap; gap:0; margin:8px 0;}
+.sent{background:var(--panel); border:1px solid var(--border); border-radius:8px;
+  padding:8px 12px; font-size:13px; color:var(--fg); white-space:nowrap;}
+.link{width:30px; height:3px; border-radius:2px;}
+.link.keep{background:var(--c1);}
+.cut{color:var(--c4); font-weight:700; padding:0 6px; font-size:16px;}
+
+/* ---------- stepper ---------- */
+.stepper{background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  margin:18px 0 8px; overflow:hidden; outline:none;}
+.stepper:focus-visible{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);}
+.stepper .head{display:flex; align-items:center; justify-content:space-between;
+  padding:12px 18px; border-bottom:1px solid var(--border); background:var(--panel);}
+.stepper .head .ttl{font-family:var(--mono); font-size:12.5px; letter-spacing:.6px; color:var(--muted);}
+.stepper .head .counter{font-family:var(--mono); font-size:12.5px; color:var(--accent); font-weight:500;}
+.stage{position:relative; min-height:330px; padding:26px 24px 6px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;}
+.step{display:none; width:100%;}
+.step.active{display:block; animation:fade .25s ease;}
+@keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
+.stage .viz{display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:14px; min-height:210px;}
+.cap{margin-top:14px; text-align:center; font-size:15px; color:var(--fg);
+  max-width:640px; margin-left:auto; margin-right:auto;}
+.cap .n{display:inline-block; background:var(--accent); color:#fff; font-family:var(--mono);
+  font-size:12px; font-weight:600; border-radius:999px; padding:1px 9px; margin-right:8px;}
+.controls{display:flex; align-items:center; justify-content:center; gap:16px;
+  padding:14px; border-top:1px solid var(--border); background:var(--panel);}
+.controls button.nav{font-family:var(--sans); font-size:14px; font-weight:600; cursor:pointer;
+  background:var(--surface); color:var(--fg); border:1px solid var(--border);
+  border-radius:9px; padding:8px 16px; transition:.15s;}
+.controls button.nav:hover:not(:disabled){border-color:var(--accent); color:var(--accent);}
+.controls button.nav:disabled{opacity:.4; cursor:default;}
+.dots{display:flex; gap:7px;}
+.dot{width:10px; height:10px; border-radius:50%; padding:0; border:none; cursor:pointer;
+  background:var(--border); transition:.15s;}
+.dot:hover{background:var(--faint);}
+.dot.on{background:var(--accent); transform:scale(1.3);}
+
+/* ---------- block grid (LLM chunking + others) ---------- */
+.blocks{display:flex; gap:8px; justify-content:center; flex-wrap:wrap;}
+.blk{display:flex; flex-direction:column; align-items:center; gap:5px;}
+.blk .n{font-family:var(--mono); font-size:12px; color:var(--muted);}
+.blk .sq{width:34px; height:34px; border-radius:7px; border:1px solid transparent; transition:.2s;}
+.c1{background:var(--c1);} .c2{background:var(--c2);} .c3{background:var(--c3);}
+.c4{background:var(--c4);} .c5{background:var(--c5);}
+.cn{background:var(--cn);} .cw{background:var(--cw); border-color:var(--cw-bd)!important;}
+.cdoc{background:var(--accent);}
+.blk.bound .sq{outline:2px dashed var(--accent); outline-offset:2px;}
+.rowlabel{font-family:var(--mono); font-size:12px; color:var(--muted); text-align:center; margin-top:2px;}
+
+/* generic little pieces used inside steps */
+.stack{display:flex; flex-direction:column; gap:10px; align-items:center;}
+.pill{background:var(--panel); border:1px solid var(--border); border-radius:10px;
+  padding:8px 14px; font-size:13.5px; max-width:520px; text-align:center;}
+.pill.hl{border-color:var(--accent); background:var(--accent-soft);}
+.pill.mono{font-family:var(--mono); font-size:12.5px;}
+.row{display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap;}
+.tree{display:flex; flex-direction:column; gap:6px; align-items:flex-start; font-size:13.5px;}
+.tree .t0{font-weight:600;}
+.tree .t1{margin-left:18px; color:var(--muted);}
+.tree .t2{margin-left:36px; color:var(--faint);}
+.brace{color:var(--faint); font-size:20px;}
+.child{width:26px; height:16px; border-radius:4px; background:var(--c2); display:inline-block;}
+.parent-box{border:2px solid var(--c3); border-radius:10px; padding:8px; display:flex; gap:6px;}
+.vec{display:flex; gap:5px; align-items:center;}
+.vec i{width:9px; height:20px; border-radius:2px; background:var(--accent); opacity:.8;}
+
+/* ---------- section 5 cards ---------- */
+.cards{display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:16px; margin:22px 0;}
+.card{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px 22px;}
+.card h4{margin:0 0 2px; font-family:var(--display); font-size:17px;}
+.card .svgwrap{margin:14px 0; display:flex; justify-content:center;}
+.card p{font-size:14.5px; margin:8px 0;}
+.card .verdict{font-size:13px; color:var(--muted); font-family:var(--mono); margin-top:10px;}
+@media(max-width:640px){ .cards{grid-template-columns:1fr;} }
+
+/* ---------- summary table ---------- */
+.tblwrap{overflow-x:auto; margin:20px 0;}
+table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:760px;}
+th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--border); vertical-align:top;}
+th{font-family:var(--mono); font-size:12px; letter-spacing:.5px; text-transform:uppercase;
+   color:var(--muted); background:var(--panel);}
+tr td:first-child{font-weight:600; white-space:nowrap;}
+.problem-tag{display:inline-block; font-family:var(--mono); font-size:11px; padding:2px 8px;
+  border-radius:999px; border:1px solid var(--border);}
+.p-where{color:var(--c2); border-color:var(--c2);}
+.p-what{color:var(--c3); border-color:var(--c3);}
+
+/* ---------- camp subtitles ---------- */
+.camp{margin:56px 0 10px; padding-bottom:10px; border-bottom:1px solid var(--border);}
+.camp .eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:1.6px;
+  text-transform:uppercase; color:var(--c2);}
+.camp.c-what .eyebrow{color:var(--c3);}
+.camp .ctitle{font-family:var(--display); font-weight:600; font-size:22px; margin-top:4px;
+  letter-spacing:-.2px;}
+
+/* ---------- structure-aware visuals ---------- */
+.split{display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; width:100%;}
+.split .colv{flex:1 1 290px; min-width:240px; max-width:350px;}
+.split .mid{display:flex; flex-direction:column; align-items:center; gap:6px; flex:0 0 auto;}
+.split .mid .arrow2{font-size:22px; font-weight:700; line-height:1; color:var(--faint);}
+.split .mid .midlbl{font-family:var(--mono); font-size:10px; letter-spacing:.5px; color:var(--faint);
+  text-align:center; line-height:1.35;}
+@media(max-width:620px){ .split .mid .arrow2{transform:rotate(90deg);} }
+.colcap{font-family:var(--mono); font-size:10.5px; letter-spacing:.8px; text-transform:uppercase;
+  color:var(--faint); margin:0 0 6px 2px;}
+.sdoc{background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:13px 15px; box-shadow:0 1px 4px rgba(0,0,0,.06); font-size:12px;}
+.sdoc .dt{font-family:var(--display); font-weight:600; font-size:13.5px; margin-bottom:7px;}
+.sdoc .dh{font-weight:600; color:var(--fg); margin:9px 0 2px;}
+.sdoc .db{color:var(--muted); line-height:1.45;}
+.sdoc .dtable{display:grid; grid-template-columns:1fr auto; gap:1px; background:var(--border);
+  border:1px solid var(--border); border-radius:5px; overflow:hidden; margin:6px 0;}
+.sdoc .dtable span{background:var(--surface); padding:3px 8px; font-size:10.5px; color:var(--muted);}
+.sdoc ul{margin:4px 0 0; padding-left:15px; color:var(--muted); line-height:1.5;}
+.wordmark{display:inline-flex; align-items:center; gap:7px; font-family:var(--display);
+  font-weight:600; font-size:14px; padding:8px 14px; border-radius:9px;
+  border:1px solid var(--border); background:var(--panel);}
+.wordmark svg{display:block;}
+.ptree{display:flex; flex-direction:column; gap:5px; font-size:12px;}
+.prow{display:flex; align-items:center; gap:8px;}
+.etag{font-family:var(--mono); font-size:9.5px; letter-spacing:.2px; padding:2px 5px;
+  border-radius:5px; border:1px solid currentColor; flex:0 0 auto; width:94px; text-align:center;}
+.et-title{color:var(--accent);} .et-head{color:var(--c2);} .et-text{color:var(--faint);}
+.et-table{color:var(--c4);} .et-list{color:var(--c5);}
+.prow .pv{color:var(--muted); font-size:11.5px;}
+.schunk{border:1.5px solid var(--border); border-radius:9px; padding:8px 11px; margin-bottom:8px;
+  background:var(--surface); font-size:11.5px;}
+.schunk.k1{border-color:var(--c2);} .schunk.k2{border-color:var(--c4);} .schunk.k3{border-color:var(--c5);}
+.schunk .ck{font-family:var(--mono); font-size:10px; letter-spacing:.4px; margin-bottom:4px;}
+.schunk.k1 .ck{color:var(--c2);} .schunk.k2 .ck{color:var(--c4);} .schunk.k3 .ck{color:var(--c5);}
+.schunk .cb{color:var(--muted); line-height:1.45;}
+.badge{display:inline-block; font-family:var(--mono); font-size:9.5px; padding:1px 6px;
+  border-radius:999px; background:var(--c4); color:#fff; margin-left:6px; letter-spacing:.3px;}
+.heur{margin-top:6px; font-family:var(--mono); font-size:11px; color:var(--muted);
+  line-height:1.7; max-width:620px; text-align:center;}
+.heur b{color:var(--fg);}
+/* markdown panels */
+.md{font-family:var(--mono); font-size:11px; line-height:1.6; text-align:left;
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:11px 13px; overflow-x:auto;}
+.md > div{white-space:pre;}
+.mh1{color:var(--accent); font-weight:600;}
+.mh2{color:var(--c2); font-weight:600; margin-top:7px;}
+.mtx{color:var(--muted);}
+.mtb{color:var(--c4);}
+.mli{color:var(--c5);}
+.mdchunk{font-family:var(--mono); font-size:11px; line-height:1.6; text-align:left;
+  background:var(--surface); border:1px solid var(--border); border-left-width:4px;
+  border-radius:8px; padding:7px 12px; margin-bottom:7px; overflow-x:auto;}
+.mdchunk > div{white-space:pre;}
+.mdchunk.k1{border-color:var(--c2);} .mdchunk.k2{border-color:var(--c4);} .mdchunk.k3{border-color:var(--c5);}
+.mdchunk .cklbl{font-family:var(--mono); font-size:9.5px; letter-spacing:.5px; margin-bottom:4px;}
+.mdchunk.k1 .cklbl{color:var(--c2);} .mdchunk.k2 .cklbl{color:var(--c4);} .mdchunk.k3 .cklbl{color:var(--c5);}
+.mdchunk.k1 .mh2{color:var(--c2);} .mdchunk.k2 .mh2{color:var(--c4);} .mdchunk.k3 .mh2{color:var(--c5);}
+.mdchunk .mtb,.mdchunk .mli{color:var(--muted);}
+/* ---------- LLM chunking · vertical paragraph list ---------- */
+.vlabel{min-height:18px; font-family:var(--mono); font-size:11px; letter-spacing:.3px;
+  color:var(--muted); text-align:center; margin-bottom:10px;}
+.plist{display:flex; flex-direction:column; gap:5px; width:100%; max-width:590px;
+  margin:0 auto; text-align:left;}
+.prow2{display:flex; align-items:center; gap:11px;}
+.pid{font-family:var(--mono); font-size:11px; color:var(--faint); width:16px;
+  text-align:right; flex:0 0 auto;}
+.pbar{width:30px; height:22px; border-radius:5px; flex:0 0 auto; border:1px solid transparent;
+  transition:background .25s, outline .2s;}
+.prow2.bound .pbar{outline:2px dashed var(--accent); outline-offset:2px;}
+.ptext{font-size:12.5px; color:var(--fg); line-height:1.35;}
+@media(max-width:560px){ .ptext{font-size:11.5px;} }
+.odoc{flex:0 0 300px; max-width:320px; background:var(--surface); border:1px solid var(--border);
+  border-radius:10px; padding:12px 15px; font-size:11px; line-height:1.5; color:var(--muted);
+  box-shadow:0 1px 4px rgba(0,0,0,.06); text-align:left;}
+.odoc-t{font-family:var(--display); font-weight:600; font-size:12.5px; color:var(--fg); margin-bottom:6px;}
+.odoc p{margin:4px 0;}
+.plist-narrow{width:auto; flex:1 1 330px; max-width:380px; margin:0;}
+.scol{flex:0 1 auto; text-align:left; min-width:0;}
+.ar{color:var(--faint); font-size:22px; font-weight:700; flex:0 0 auto; line-height:1;}
+@media(max-width:620px){ .ar{transform:rotate(90deg);} }
+.bgroup{margin-bottom:14px;}
+.bgroup:last-child{margin-bottom:0;}
+.blbl{font-family:var(--mono); font-size:10px; color:var(--muted); margin-bottom:5px;}
+.minirow{display:flex; gap:5px; flex-wrap:wrap;}
+.miniblk{width:24px; height:24px; border-radius:5px; display:flex; align-items:center;
+  justify-content:center; font-family:var(--mono); font-size:10px; color:var(--muted);
+  background:var(--panel); border:1px solid var(--border);}
+.llmchip{display:inline-flex; align-items:center; gap:6px; font-family:var(--display); font-weight:600;
+  font-size:13px; padding:7px 13px; border-radius:9px; border:1px solid var(--c2);
+  background:var(--accent-soft); color:var(--c2);}
+.prompt{font-family:var(--mono); font-size:10px; line-height:1.5; text-align:left; color:var(--muted);
+  background:var(--surface); border:1px dashed var(--border); border-radius:8px; padding:8px 10px;
+  max-width:190px; margin-top:9px;}
+.prompt b{color:var(--fg);}
+.jsonout{font-family:var(--mono); font-size:10.5px; line-height:1.5; text-align:left; color:var(--fg);
+  background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 10px;
+  white-space:pre-wrap; margin-bottom:8px;}
+.jsonout .jw{color:var(--faint);}
+.plist.mini{gap:3px; width:auto; max-width:none;}
+.plist.mini .pbar{height:15px; width:26px;}
+.boundbox{border:2px dashed var(--accent); border-radius:9px; padding:8px 11px; display:inline-block;}
+/* ---------- hierarchical parent–child ---------- */
+.pcard{border:1.5px solid var(--c3); border-radius:10px; padding:9px 11px; background:var(--surface); text-align:left;}
+.pcard + .pcard{margin-top:10px;}
+.pcard.on{box-shadow:0 0 0 3px var(--accent-soft); border-color:var(--accent);}
+.ptitle2{font-family:var(--mono); font-size:10px; color:var(--c3); margin-bottom:6px; letter-spacing:.4px;}
+.pcard.on .ptitle2{color:var(--accent);}
+.kids{display:flex; flex-direction:column; gap:5px;}
+.kid{display:flex; align-items:center; gap:8px; border-radius:5px;}
+.kbar{width:20px; height:14px; border-radius:4px; background:var(--c2); flex:0 0 auto;}
+.ktext{font-size:11px; color:var(--muted); line-height:1.3;}
+.kid.hit .kbar{background:var(--accent);}
+.kid.hit .ktext{color:var(--fg); font-weight:600;}
+.kid.hit{outline:2px solid var(--accent); outline-offset:3px;}
+/* ---------- contextual retrieval ---------- */
+.ctxchunk{border:1.5px solid var(--c3); border-radius:9px; overflow:hidden; text-align:left; max-width:360px;}
+.ctx-blurb{background:var(--c3); color:#04211d; padding:7px 12px; font-size:12px; line-height:1.4; font-weight:500;}
+.ctx-body{padding:7px 12px; font-size:12px; font-family:var(--mono); color:var(--muted);}
+.hlt{background:var(--accent-soft); color:var(--fg); border-radius:3px; padding:0 3px;}
+/* late chunking — token boxes */
+.tokbox{display:inline-flex; gap:3px; align-items:center; border:1px solid var(--border);
+  border-radius:6px; padding:3px 5px; background:var(--panel);}
+.tokbox i{width:6px; height:16px; border-radius:2px; background:var(--cn); display:block;}
+.cvec{font-size:12px; padding:5px 12px; background:var(--panel); border:1px solid var(--border);
+  border-radius:10px; color:var(--fg);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ 1 ============ -->
+  <h2><span class="kicker">01 · The basics</span>What is chunking?</h2>
+  <p>An LLM can only read that much at once. Loading all info into one prompt is slow, pricey, and actually makes the answers worse. So before we can ask questions over a big pile of documents, we chop each one into bite-size pieces. Each piece is a <strong>chunk</strong>.</p>
+  <p>Chunking is the very first step of <strong>RAG</strong> (Retrieval Augmented Generation): slice the documents into chunks, embed each chunk into a vector, and store them. In this blog, I'll walk through the chunking techniques that I find genuinely practical — not the academic ones, just the stuff developers actually ship.</p>
+  <p>But before we get into the chunking techniques, I think there's a fair question to touch on at the point of 2026.</p>
+
+  <!-- ============ 2 ============ -->
+  <h2><span class="kicker">02 · The 2026 fair question</span>Do we still need RAG and chunking?</h2>
+  <p>Lately you'll find no shortage of articles declaring that <strong>RAG is dead.</strong> The argument goes: agents are so capable now, and just letting one <code>grep</code> its way through the files is so flexible and powerful, that chunking and RAG feels like yesterday's plumbing.</p>
+  <p>My take: <strong>it's still very much needed</strong> — especially in the enterprise space. Agent-plus-grep works beautifully on a single codebase where you can afford to let it spend a while poking around. But point it at a <em>large corpus</em> — thousands or even millions of documents — where answers have to come back <em>fast</em>, and that approach falls apart. That's exactly the ground RAG owns, and RAG only works if the corpus was chunked and indexed ahead of time. So chunking isn't going anywhere.</p>
+
+  <!-- ============ 3 ============ -->
+  <h2><span class="kicker">03 · Where it started</span>The two basic approaches</h2>
+  <p>Before the advanced stuff, here are the two ideas everyone starts with. They're simple, they work okay, and understanding their weaknesses is the whole reason the fancier techniques exist.</p>
+
+  <h3>a) Fixed length + overlap</h3>
+  <p>The most basic move: cut every N tokens and let neighbors <em>overlap</em> a little so a thought sitting right on a boundary isn't lost. Say you set a chunk size of 500 tokens with 50 tokens of overlap — chunk 1 is tokens 1–500, chunk 2 is 451–950, and so on. The overlap is a safety margin.</p>
+  <p>The problem is it's blind. It counts to 500 and cuts, so it'll happily split a sentence in half, or slice a table right down the middle: <em>"Total revenue was $4.2"</em> ends one chunk and <em>"million, up 3% YoY"</em> starts the next. Neither piece is much use on its own.</p>
+
+  <h3>b) Semantic chunking with a threshold</h3>
+  <p>A bit smarter: split the document into sentences, and then turn each sentence into a vector, use cosine similarity to measure how closely neighboring sentences relate, and cut only where the topic clearly shifts — that is, where the similarity drops below a set threshold. </p>
+  <p>With this approach, the boundaries are more meaningful, but it's still blind to structure (a table or heading can get split), and the threshold is hard to tune — set it low and it rarely cuts, giving oversized chunks; set it high and it cuts too often, giving tiny ones. It's now often used as a baseline chunking method to start with.</p>
+
+  <!-- ============ 4 ============ -->
+  <h2><span class="kicker">04 · The good stuff</span>Practical techniques that actually ship</h2>
+  <p>Everything in this section is what I'd call simple, practical, and reasonably popular in developer communities — not theoretical or academic. Looking across the methods that have caught on, I noticed something: they fall cleanly into two camps, aiming at two very different problems.</p>
+  <p><strong style="color:var(--c2)">Problem 1 — finding the optimal segmentation points:</strong> where should a document actually be cut, so each piece comes out clean and self-contained?</p>
+  <p><strong style="color:var(--c3)">Problem 2 — providing more context to every chunk:</strong> how do we make sure a chunk still makes sense once it's pulled away from everything around it?</p>
+  <p>Let's take a look at them one camp at a time, starting with where to cut.</p>
+
+  <div class="camp">
+    <div class="eyebrow">Camp 1</div>
+    <div class="ctitle">Finding the optimal segmentation points</div>
+  </div>
+
+  <h3>Structure-aware chunking</h3>
+  <p>The big insight: most real documents already tell you where to cut — titles, headings, tables, lists. You just have to <em>recover</em> that structure first, and modern document parsers do exactly that. <a href="https://github.com/docling-project/docling" target="_blank" rel="noopener">Docling</a> has quite strong adoption among developers for parsing <code>docx</code>, <code>pdf</code>, <code>pptx</code> and the like into a clean structure, while <a href="https://github.com/NanoNets/docstrange" target="_blank" rel="noopener">Docstrange</a> tends to work better on scanned documents that need OCR and visual information extraction. Either way, once the structure is back, you cut along it.</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">STRUCTURE-AWARE CHUNKING</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split">
+            <div class="colv">
+              <div class="colcap">Raw file</div>
+              <div class="sdoc">
+                <div class="dt">Nimbus — Q2 2026 Report</div>
+                <div class="dh">Revenue</div>
+                <div class="db">Cloud revenue reached $4.2M, up 3% from last quarter.</div>
+                <div class="dh">Pricing</div>
+                <div class="dtable">
+                  <span>Basic</span><span>$10/mo</span>
+                  <span>Pro</span><span>$30/mo</span>
+                  <span>Enterprise</span><span>Custom</span>
+                </div>
+                <div class="dh">Legal</div>
+                <ul><li>Data retention: 90 days</li><li>SLA: 99.9% uptime</li></ul>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="wordmark"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="8" height="10" rx="1.5" fill="var(--c2)" opacity=".22"/><rect x="5.5" y="2" width="8" height="10" rx="1.5" fill="none" stroke="var(--c2)" stroke-width="1.5"/></svg>Docling</div>
+              <div class="arrow2">→</div>
+              <div class="midlbl">parse</div>
+            </div>
+            <div class="colv">
+              <div class="colcap">Docling output · markdown</div>
+              <div class="md">
+                <div class="mh1"># Nimbus — Q2 2026 Report</div>
+                <div class="mh2">## Revenue</div>
+                <div class="mtx">Cloud revenue reached $4.2M, up 3% QoQ.</div>
+                <div class="mh2">## Pricing</div>
+                <div class="mtb">| Plan       | Price  |</div>
+                <div class="mtb">| ---------- | ------ |</div>
+                <div class="mtb">| Basic      | $10/mo |</div>
+                <div class="mtb">| Pro        | $30/mo |</div>
+                <div class="mtb">| Enterprise | Custom |</div>
+                <div class="mh2">## Legal</div>
+                <div class="mli">- Data retention: 90 days</div>
+                <div class="mli">- SLA: 99.9% uptime</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>Feed the raw file (PDF, DOCX, PPTX…) into a parser like Docling. Instead of one flat blob of text, you get clean <strong>markdown</strong> back — headings, tables and lists all preserved in the document's real structure.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split">
+            <div class="colv">
+              <div class="colcap">Docling markdown</div>
+              <div class="md">
+                <div class="mh1"># Nimbus — Q2 2026 Report</div>
+                <div class="mh2">## Revenue</div>
+                <div class="mtx">Cloud revenue reached $4.2M, up 3% QoQ.</div>
+                <div class="mh2">## Pricing</div>
+                <div class="mtb">| Plan       | Price  |</div>
+                <div class="mtb">| ---------- | ------ |</div>
+                <div class="mtb">| Basic      | $10/mo |</div>
+                <div class="mtb">| Pro        | $30/mo |</div>
+                <div class="mtb">| Enterprise | Custom |</div>
+                <div class="mh2">## Legal</div>
+                <div class="mli">- Data retention: 90 days</div>
+                <div class="mli">- SLA: 99.9% uptime</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">split on<br>headings</div>
+              <div class="arrow2">→</div>
+              <div class="midlbl">chunks</div>
+            </div>
+            <div class="colv">
+              <div class="colcap">Chunks · split along structure</div>
+              <div class="mdchunk k1">
+                <div class="cklbl">CHUNK 1</div>
+                <div class="mh1"># Nimbus — Q2 2026 Report</div>
+                <div class="mh2">## Revenue</div>
+                <div class="mtx">Cloud revenue reached $4.2M, up 3% QoQ.</div>
+              </div>
+              <div class="mdchunk k2">
+                <div class="cklbl">CHUNK 2</div>
+                <div class="mh2">## Pricing</div>
+                <div class="mtb">| Basic      | $10/mo |</div>
+                <div class="mtb">| Pro        | $30/mo |</div>
+                <div class="mtb">| Enterprise | Custom |</div>
+              </div>
+              <div class="mdchunk k3">
+                <div class="cklbl">CHUNK 3</div>
+                <div class="mh2">## Legal</div>
+                <div class="mli">- Data retention: 90 days</div>
+                <div class="mli">- SLA: 99.9% uptime</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>Split the markdown along its own headings, with a few simple rules. Every chunk lands on a real boundary — no sentence or table ever gets sliced through the middle.</p>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="dots"></div>
+    </div>
+  </div>
+  <p>This approach is <strong>fast and low-cost</strong>, and works very well when the material is well structured (e.g. legal, financial documents) — but it doesn't hold up when the source is messy with no real structure to follow, or when a single section is so long that splitting on structure alone still leaves the chunk far too big.</p>
+  <p>In short, it's highly dependent on document quality and not a universally applicable approach — but it works well for plenty of production systems in specialised domains.</p>
+  <h3>LLM chunking</h3>
+  <p>The core idea is simple: load the whole document (or a very large part of it) into an LLM and just ask it to do the chunking for you. Because the model sees the full context, the boundaries it picks tend to be more sensible than anything a fixed rule could achieve. And since you drive it with a prompt, you get to steer <em>how</em> the segmentation happens — group by topic, by section, by whatever your use case needs — which makes it very flexible.</p>
+  <p>There are several variants of this approach; the one below is the version I've found most practical and robust in production. Watch how each numbered blocks (a paragraph) get grouped into clusters:</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">LLM CHUNKING</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="vlabel">load the document, split into paragraphs · one ID each</div>
+          <div class="split">
+            <div class="odoc">
+              <div class="odoc-t">Nimbus Cloud — User Guide</div>
+              <p>Welcome to Nimbus Cloud — what this guide covers.</p>
+              <p>Create an account on the Nimbus portal to begin.</p>
+              <p>Verify your email, then sign in to the dashboard.</p>
+              <p>From the dashboard, create your first project.</p>
+              <p>Billing is monthly and based on your usage.</p>
+              <p>View past invoices under the Billing tab.</p>
+              <p>Payment methods: credit card or bank transfer.</p>
+              <p>All data is encrypted at rest and in transit.</p>
+              <p>Support is available 24/7 via live chat.</p>
+              <p>You can also reach us at support@nimbus.io.</p>
+              <p>Use of the service is subject to our Terms.</p>
+            </div>
+            <div class="mid">
+              <div class="midlbl">split into<br>paragraphs</div>
+              <div class="arrow2">→</div>
+              <div class="midlbl">+ IDs</div>
+            </div>
+            <div class="plist plist-narrow">
+              <div class="prow2"><span class="pid">1</span><span class="pbar cn"></span><span class="ptext">Welcome to Nimbus Cloud — what this guide covers.</span></div>
+              <div class="prow2"><span class="pid">2</span><span class="pbar cn"></span><span class="ptext">Create an account on the Nimbus portal to begin.</span></div>
+              <div class="prow2"><span class="pid">3</span><span class="pbar cn"></span><span class="ptext">Verify your email, then sign in to the dashboard.</span></div>
+              <div class="prow2"><span class="pid">4</span><span class="pbar cn"></span><span class="ptext">From the dashboard, create your first project.</span></div>
+              <div class="prow2"><span class="pid">5</span><span class="pbar cn"></span><span class="ptext">Billing is monthly and based on your usage.</span></div>
+              <div class="prow2"><span class="pid">6</span><span class="pbar cn"></span><span class="ptext">View past invoices under the Billing tab.</span></div>
+              <div class="prow2"><span class="pid">7</span><span class="pbar cn"></span><span class="ptext">Payment methods: credit card or bank transfer.</span></div>
+              <div class="prow2"><span class="pid">8</span><span class="pbar cn"></span><span class="ptext">All data is encrypted at rest and in transit.</span></div>
+              <div class="prow2"><span class="pid">9</span><span class="pbar cn"></span><span class="ptext">Support is available 24/7 through live chat.</span></div>
+              <div class="prow2"><span class="pid">10</span><span class="pbar cn"></span><span class="ptext">You can also reach us at support@nimbus.io.</span></div>
+              <div class="prow2"><span class="pid">11</span><span class="pbar cn"></span><span class="ptext">Use of the service is subject to our Terms.</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>Load the original document and split it into paragraphs, giving <b>every paragraph an ID</b>. Here we get 11 short paragraphs — 11 IDs.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="vlabel">batch 1 · ¶1–6 &nbsp;&nbsp;·&nbsp;&nbsp; batch 2 · ¶7–11</div>
+          <div class="plist">
+            <div class="prow2"><span class="pid">1</span><span class="pbar cdoc"></span><span class="ptext">Welcome to Nimbus Cloud — what this guide covers.</span></div>
+            <div class="prow2"><span class="pid">2</span><span class="pbar cdoc"></span><span class="ptext">Create an account on the Nimbus portal to begin.</span></div>
+            <div class="prow2"><span class="pid">3</span><span class="pbar cdoc"></span><span class="ptext">Verify your email, then sign in to the dashboard.</span></div>
+            <div class="prow2"><span class="pid">4</span><span class="pbar cdoc"></span><span class="ptext">From the dashboard, create your first project.</span></div>
+            <div class="prow2"><span class="pid">5</span><span class="pbar cdoc"></span><span class="ptext">Billing is monthly and based on your usage.</span></div>
+            <div class="prow2"><span class="pid">6</span><span class="pbar cdoc"></span><span class="ptext">View past invoices under the Billing tab.</span></div>
+            <div class="prow2"><span class="pid">7</span><span class="pbar cn"></span><span class="ptext">Payment methods: credit card or bank transfer.</span></div>
+            <div class="prow2"><span class="pid">8</span><span class="pbar cn"></span><span class="ptext">All data is encrypted at rest and in transit.</span></div>
+            <div class="prow2"><span class="pid">9</span><span class="pbar cn"></span><span class="ptext">Support is available 24/7 through live chat.</span></div>
+            <div class="prow2"><span class="pid">10</span><span class="pbar cn"></span><span class="ptext">You can also reach us at support@nimbus.io.</span></div>
+            <div class="prow2"><span class="pid">11</span><span class="pbar cn"></span><span class="ptext">Use of the service is subject to our Terms.</span></div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>Only needed if the document is bigger than the LLM's context window (say 200,000 tokens) — otherwise skip it. If it is, group the paragraphs into batches under a size limit N, with <b>no overlapping paragraphs</b>, so each fits in one LLM call.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:flex-start;">
+            <div class="scol" style="max-width:110px;">
+              <div class="blbl">batch 1 · ¶1–6</div>
+              <div class="plist mini" style="margin:0 0 14px;">
+                <div class="prow2"><span class="pid">1</span><span class="pbar cdoc"></span></div>
+                <div class="prow2"><span class="pid">2</span><span class="pbar cdoc"></span></div>
+                <div class="prow2"><span class="pid">3</span><span class="pbar cdoc"></span></div>
+                <div class="prow2"><span class="pid">4</span><span class="pbar cdoc"></span></div>
+                <div class="prow2"><span class="pid">5</span><span class="pbar cdoc"></span></div>
+                <div class="prow2"><span class="pid">6</span><span class="pbar cdoc"></span></div>
+              </div>
+              <div class="blbl">batch 2 · ¶7–11</div>
+              <div class="plist mini" style="margin:0;">
+                <div class="prow2"><span class="pid">7</span><span class="pbar cn"></span></div>
+                <div class="prow2"><span class="pid">8</span><span class="pbar cn"></span></div>
+                <div class="prow2"><span class="pid">9</span><span class="pbar cn"></span></div>
+                <div class="prow2"><span class="pid">10</span><span class="pbar cn"></span></div>
+                <div class="prow2"><span class="pid">11</span><span class="pbar cn"></span></div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="mid" style="align-self:center;">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt">Below is the document's contents and blocks:<br>1. [content]<br>2. [content]<br>3. [content]<br>…<br>Group related paragraphs. Return JSON: clusters of IDs, plus a short reason for each.</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:340px;">
+              <div class="blbl">batch 1 → clusters</div>
+              <div class="row" style="align-items:flex-start; justify-content:flex-start; flex-wrap:nowrap; gap:12px; margin-bottom:14px;">
+                <div class="plist mini" style="margin:0;">
+                  <div class="prow2"><span class="pid">1</span><span class="pbar c1"></span></div>
+                  <div class="prow2"><span class="pid">2</span><span class="pbar c2"></span></div>
+                  <div class="prow2"><span class="pid">3</span><span class="pbar c2"></span></div>
+                  <div class="prow2"><span class="pid">4</span><span class="pbar c2"></span></div>
+                  <div class="prow2"><span class="pid">5</span><span class="pbar c3"></span></div>
+                  <div class="prow2"><span class="pid">6</span><span class="pbar c3"></span></div>
+                </div>
+                <div class="jsonout" style="margin:0;">[
+ {"ids":[1], "why":<span class="jw">"intro"</span>},
+ {"ids":[2,3,4], "why":<span class="jw">"setup"</span>},
+ {"ids":[5,6], "why":<span class="jw">"billing"</span>}
+]</div>
+              </div>
+              <div class="blbl">batch 2 → clusters</div>
+              <div class="row" style="align-items:flex-start; justify-content:flex-start; flex-wrap:nowrap; gap:12px;">
+                <div class="plist mini" style="margin:0;">
+                  <div class="prow2"><span class="pid">7</span><span class="pbar cw"></span></div>
+                  <div class="prow2"><span class="pid">8</span><span class="pbar cw"></span></div>
+                  <div class="prow2"><span class="pid">9</span><span class="pbar cn"></span></div>
+                  <div class="prow2"><span class="pid">10</span><span class="pbar cn"></span></div>
+                  <div class="prow2"><span class="pid">11</span><span class="pbar c4"></span></div>
+                </div>
+                <div class="jsonout" style="margin:0;">[
+ {"ids":[7,8], "why":<span class="jw">"payment+sec"</span>},
+ {"ids":[9,10], "why":<span class="jw">"support"</span>},
+ {"ids":[11], "why":<span class="jw">"legal"</span>}
+]</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>Feed each batch to the LLM. The prompt hands it every paragraph's ID and content and asks it to <b>group related ones</b>, returning JSON clusters — each with a short reason (same color = same cluster). The two batches go through as separate calls.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:flex-start;">
+            <div class="scol" style="max-width:150px;">
+              <div class="blbl">clusters so far</div>
+              <div class="plist mini" style="margin:0;">
+                <div class="prow2"><span class="pid">1</span><span class="pbar c1"></span></div>
+                <div class="prow2"><span class="pid">2</span><span class="pbar c2"></span></div>
+                <div class="prow2"><span class="pid">3</span><span class="pbar c2"></span></div>
+                <div class="prow2"><span class="pid">4</span><span class="pbar c2"></span></div>
+                <div class="boundbox" style="margin:3px 0; padding:5px 7px;">
+                  <div class="plist mini" style="margin:0;">
+                    <div class="prow2"><span class="pid">5</span><span class="pbar c3"></span></div>
+                    <div class="prow2"><span class="pid">6</span><span class="pbar c3"></span></div>
+                    <div class="prow2"><span class="pid">7</span><span class="pbar cw"></span></div>
+                    <div class="prow2"><span class="pid">8</span><span class="pbar cw"></span></div>
+                  </div>
+                </div>
+                <div class="prow2"><span class="pid">9</span><span class="pbar cn"></span></div>
+                <div class="prow2"><span class="pid">10</span><span class="pbar cn"></span></div>
+                <div class="prow2"><span class="pid">11</span><span class="pbar c4"></span></div>
+              </div>
+              <div class="blbl" style="margin-top:7px;">only ¶5–8 go to the LLM</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="mid" style="align-self:center;">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt">Re-cluster just these bordering paragraphs:<br>5. [content]<br>…<br>8. [content]<br>Return JSON: clusters of IDs + reasons.</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:330px;">
+              <div class="blbl">re-clustered</div>
+              <div class="row" style="align-items:flex-start; justify-content:flex-start; flex-wrap:nowrap; gap:12px;">
+                <div class="plist mini" style="margin:0;">
+                  <div class="prow2"><span class="pid">1</span><span class="pbar c1"></span></div>
+                  <div class="prow2"><span class="pid">2</span><span class="pbar c2"></span></div>
+                  <div class="prow2"><span class="pid">3</span><span class="pbar c2"></span></div>
+                  <div class="prow2"><span class="pid">4</span><span class="pbar c2"></span></div>
+                  <div class="boundbox" style="margin:3px 0; padding:5px 7px;">
+                    <div class="plist mini" style="margin:0;">
+                      <div class="prow2"><span class="pid">5</span><span class="pbar c3"></span></div>
+                      <div class="prow2"><span class="pid">6</span><span class="pbar c3"></span></div>
+                      <div class="prow2"><span class="pid">7</span><span class="pbar c3"></span></div>
+                      <div class="prow2"><span class="pid">8</span><span class="pbar cw"></span></div>
+                    </div>
+                  </div>
+                  <div class="prow2"><span class="pid">9</span><span class="pbar cn"></span></div>
+                  <div class="prow2"><span class="pid">10</span><span class="pbar cn"></span></div>
+                  <div class="prow2"><span class="pid">11</span><span class="pbar c4"></span></div>
+                </div>
+                <div class="jsonout" style="margin:0; align-self:center;">[
+ {"ids":[5,6,7], "why":<span class="jw">"billing"</span>},
+ {"ids":[8], "why":<span class="jw">"security"</span>}
+]</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">4</span><b>Boundary handling.</b> Only the seam — ¶5–8, in the dashed box — goes back to the LLM; every other paragraph stays exactly as it was. One more call, and ¶7 correctly joins billing while ¶8 is left on its own.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="vlabel">final chunks · every ID assigned exactly once ✓</div>
+          <div class="plist">
+            <div class="prow2"><span class="pid">1</span><span class="pbar c1"></span><span class="ptext">Welcome to Nimbus Cloud — what this guide covers.</span></div>
+            <div class="prow2"><span class="pid">2</span><span class="pbar c2"></span><span class="ptext">Create an account on the Nimbus portal to begin.</span></div>
+            <div class="prow2"><span class="pid">3</span><span class="pbar c2"></span><span class="ptext">Verify your email, then sign in to the dashboard.</span></div>
+            <div class="prow2"><span class="pid">4</span><span class="pbar c2"></span><span class="ptext">From the dashboard, create your first project.</span></div>
+            <div class="prow2"><span class="pid">5</span><span class="pbar c3"></span><span class="ptext">Billing is monthly and based on your usage.</span></div>
+            <div class="prow2"><span class="pid">6</span><span class="pbar c3"></span><span class="ptext">View past invoices under the Billing tab.</span></div>
+            <div class="prow2"><span class="pid">7</span><span class="pbar c3"></span><span class="ptext">Payment methods: credit card or bank transfer.</span></div>
+            <div class="prow2"><span class="pid">8</span><span class="pbar cw"></span><span class="ptext">All data is encrypted at rest and in transit.</span></div>
+            <div class="prow2"><span class="pid">9</span><span class="pbar cn"></span><span class="ptext">Support is available 24/7 through live chat.</span></div>
+            <div class="prow2"><span class="pid">10</span><span class="pbar cn"></span><span class="ptext">You can also reach us at support@nimbus.io.</span></div>
+            <div class="prow2"><span class="pid">11</span><span class="pbar c4"></span><span class="ptext">Use of the service is subject to our Terms.</span></div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">5</span>Combine everything and <b>validate</b> that each ID landed in exactly one cluster (with fallback rules for anything the LLM dropped). Each color block is now a final chunk — grouped by meaning, not by length.</p>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="dots"></div>
+    </div>
+  </div>
+  <p>The big win is context: the LLM sees the full picture when it decides where the segmentation points should be, so it works across all kinds of documents — structured or not. The catch is cost and speed: it has to read the entire document at least once and generate the chunks, which gets slow and potentially expensive over a huge corpus. And because an LLM is probabilistic by nature, the results can be slightly unstable — the same document won't always chunk exactly the same way twice.</p>
+
+  <div class="camp c-what">
+    <div class="eyebrow">Camp 2</div>
+    <div class="ctitle">Providing more context to every chunk</div>
+  </div>
+  <p>Unlike Camp 1 techniques that try to find the optimal segmentation points, Camp 2 techniques aim at enhancing the surrounding context for the chunks, regardless of how they are split. Let's take a look.</p>
+
+  <h3>Hierarchical (parent–child) Chunking</h3>
+  <p>The idea starts from a trade-off: small chunks and big chunks are each good at only half the job. Small chunks are easy to <em>find</em> — a tight, specific match — but too thin on context for the model to answer well. Big chunks carry plenty of context but make search fuzzy. Parent–child chunking keeps both: you index the small <b>child</b> chunks for precise retrieval, but when one matches, you hand the model its bigger <b>parent</b> chunk to actually answer from.</p>
+  <p>Here's the flow with a simple example:</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">HIERARCHICAL (PARENT–CHILD) CHUNKING</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:250px;">
+              <div class="blbl">document</div>
+              <div class="sdoc">
+                <div class="dt">Nimbus guide</div>
+                <div class="dh">Getting started</div>
+                <div class="db">Create an account on the portal. Verify your email, then sign in. Create your first project.</div>
+                <div class="dh">Billing</div>
+                <div class="db">Billing is monthly, based on usage. Invoices live under the Billing tab. Pay by credit card or bank transfer.</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">split into<br>parents + children</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:300px;">
+              <div class="pcard">
+                <div class="ptitle2">PARENT · Getting started</div>
+                <div class="kids">
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Create an account on the portal.</span></div>
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Verify your email, then sign in.</span></div>
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Create your first project.</span></div>
+                </div>
+              </div>
+              <div class="pcard">
+                <div class="ptitle2">PARENT · Billing</div>
+                <div class="kids">
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Billing is monthly, based on usage.</span></div>
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Invoices live under the Billing tab.</span></div>
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Pay by credit card or bank transfer.</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>Cut the document into big <b>parent</b> chunks — roughly a section each — then split every parent into small <b>child</b> chunks. Store both levels and the parent-child mapping.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:150px;">
+              <div class="blbl">query</div>
+              <div class="pill hl">“How do I pay?”</div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">match the<br>children</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:300px;">
+              <div class="pcard">
+                <div class="ptitle2">PARENT · Getting started</div>
+                <div class="kids">
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Create an account on the portal.</span></div>
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Verify your email, then sign in.</span></div>
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Create your first project.</span></div>
+                </div>
+              </div>
+              <div class="pcard">
+                <div class="ptitle2">PARENT · Billing</div>
+                <div class="kids">
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Billing is monthly, based on usage.</span></div>
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Invoices live under the Billing tab.</span></div>
+                  <div class="kid hit"><span class="kbar"></span><span class="ktext">Pay by credit card or bank transfer.</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>A question comes in. You match it against the <b>small child chunks</b> — small and focused, so the match is sharp and precise. Here it lands on one billing sentence.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:190px;">
+              <div class="blbl">matched child</div>
+              <div class="pill" style="border-color:var(--accent);">“Pay by credit card or bank transfer.”</div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">look up<br>its parent</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:280px;">
+              <div class="blbl">return the whole parent</div>
+              <div class="pcard on">
+                <div class="ptitle2">PARENT · Billing</div>
+                <div class="kids">
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Billing is monthly, based on usage.</span></div>
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Invoices live under the Billing tab.</span></div>
+                  <div class="kid hit"><span class="kbar"></span><span class="ktext">Pay by credit card or bank transfer.</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>Here's the switch: instead of returning that one tiny child, you follow it up to its <b>parent</b> and hand back the whole section.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:250px;">
+              <div class="pcard on">
+                <div class="ptitle2">PARENT · Billing</div>
+                <div class="kids">
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Billing is monthly, based on usage.</span></div>
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Invoices live under the Billing tab.</span></div>
+                  <div class="kid"><span class="kbar"></span><span class="ktext">Pay by credit card or bank transfer.</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="mid" style="align-self:center;">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:230px;">
+              <div class="blbl">answer</div>
+              <div class="pill hl">“Pay by credit card or bank transfer. Billing is monthly and based on usage, and invoices are under the Billing tab.”</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">4</span>The model answers from the roomy <b>parent</b> chunk — precise search, well-fed answer. You stop having to choose between small and big.</p>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="dots"></div>
+    </div>
+  </div>
+  <p>The appeal is its simplicity — both the concept and the implementation are straightforward, with no extra LLM calls, just a child-to-parent lookup at retrieval time — and it noticeably lifts answer quality when your chunks are individually too small to stand on their own. The catch is that it doesn't actually solve <em>where to cut the parents</em>. You still need structure-aware chunking (or some other Camp 1 technique) to split the document into good parent chunks in the first place — parent–child sits on top of that, it doesn't replace it.</p>
+
+  <h3>Contextual Retrieval</h3>
+  <p>A chunk pulled out of its document can be quietly meaningless. Take <em>"The revenue grew 3% over the previous quarter."</em> — whose revenue? which company? which quarter? On its own, it's nearly impossible to retrieve correctly.</p>
+  <p>Contextual Retrieval (popularized by Anthropic) fixes this: before storing each chunk, you have an LLM write a short "you are here" note — situating the chunk within the whole document — and prepend it to the chunk. The text now carries its own context. Here's the flow:</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">CONTEXTUAL RETRIEVAL</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="stack">
+            <div class="pill mono">“The revenue grew 3% over the previous quarter.”</div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>Here's a chunk on its own. It's almost meaningless — and a search like "Nimbus cloud Q2 revenue" would never find it, since none of those words appear in it.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:215px;">
+              <div class="blbl">the whole document</div>
+              <div class="sdoc">
+                <div class="dt">Nimbus — Q2 2026 Report</div>
+                <div class="dh">Cloud division</div>
+                <div class="db">… <span class="hlt">The revenue grew 3% over the previous quarter.</span> …</div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="mid" style="align-self:center;">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt" style="max-width:260px;">&lt;document&gt; [WHOLE_DOCUMENT] &lt;/document&gt;<br>&lt;chunk&gt; [CHUNK_CONTENT] &lt;/chunk&gt;<br><br>Please give a short succinct context to situate this chunk within the overall document for the purposes of improving search retrieval. Answer only with the succinct context and nothing else.</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:200px;">
+              <div class="blbl">context blurb</div>
+              <div class="pill" style="border-color:var(--c1);">“From Nimbus Corp's Q2 2026 report — the cloud division's revenue.”</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>Send the LLM the chunk plus the whole document, and ask it to situate the chunk. It writes a short <b>context blurb</b> pinning the chunk to its place in the bigger story.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="stack">
+            <div class="blbl">context blurb + original chunk</div>
+            <div class="ctxchunk">
+              <div class="ctx-blurb">From Nimbus Corp's Q2 2026 report — the cloud division's revenue.</div>
+              <div class="ctx-body">The revenue grew 3% over the previous quarter.</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>Glue the blurb onto the <b>front of the chunk</b>. The original text stays untouched below, with the added context on top — so the chunk now carries its own context wherever it goes.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:250px;">
+              <div class="ctxchunk">
+                <div class="ctx-blurb">From Nimbus Corp's Q2 2026 report — the cloud division's revenue.</div>
+                <div class="ctx-body">The revenue grew 3% over the previous quarter.</div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="mid" style="align-self:center;">
+              <div class="midlbl">embed</div>
+              <div class="vec"><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="midlbl">store</div>
+            </div>
+          </div>
+          <div class="pill hl" style="margin-top:14px;">now findable by “Nimbus cloud Q2 revenue” ✓</div>
+        </div>
+        <p class="cap"><span class="n">4</span>Embed and store the contextualized chunk. Retrieval gets dramatically more accurate — the text now literally spells out what it's about, so the query matches.</p>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="dots"></div>
+    </div>
+  </div>
+  <p>It works well and is easy to be added into an existing pipeline — it doesn't care how you split, it just enriches whatever chunks you already have. The real catch is cost: to contextualize every chunk, the LLM has to read through the whole document once per chunk, so each document gets processed many times over. Prompt caching softens the blow, but across a large corpus the total time and cost add up fast — it can end up more time-consuming and expensive than LLM chunking, which only reads each document once. For the full details, see <a href="https://www.anthropic.com/engineering/contextual-retrieval" target="_blank" rel="noopener">Anthropic's engineering blog</a>.</p>
+
+  <h3>Late chunking</h3>
+  <p>Same goal as contextual retrieval — give each chunk more context — but a different route that changes <em>nothing</em> about the text. The whole trick is in the order. Instead of cutting first and embedding each piece blind, you embed the <b>whole document first</b>, then cut. Because the embedding model reads the entire document in one pass, every token's vector already reflects the words around it; you just pool those token vectors into chunk vectors afterwards.</p>
+  <p>It's a technique from Jina AI, and the name says it all: cut <b>late</b>, not early. Here's the flow:</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">LATE CHUNKING</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:140px;">
+              <div class="blbl">cut first, into chunks</div>
+              <div class="stack" style="gap:6px; align-items:stretch;">
+                <div class="pill mono">A · “Nimbus Q2…”</div>
+                <div class="pill mono">B · “grew 3%.”</div>
+                <div class="pill mono">C · “cloud div…”</div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:130px;">
+              <div class="blbl">embed each chunk alone</div>
+              <div class="stack" style="gap:6px; align-items:flex-start;">
+                <div class="tokbox"><i></i><i></i><i></i><i></i></div>
+                <div class="tokbox"><i></i><i></i><i></i><i></i></div>
+                <div class="tokbox"><i></i><i></i><i></i><i></i></div>
+              </div>
+              <div class="blbl" style="margin-top:6px;">tokens see only their own chunk</div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">mean-pool</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:110px;">
+              <div class="blbl">chunk vectors</div>
+              <div class="stack" style="gap:7px; align-items:flex-start;">
+                <span class="pill" style="background:var(--c2); border-color:var(--c2); color:#fff;">chunk A</span>
+                <span class="pill" style="background:var(--c3); border-color:var(--c3); color:#fff;">chunk B</span>
+                <span class="pill" style="background:var(--c5); border-color:var(--c5); color:#fff;">chunk C</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>The usual way: cut first, then embed each chunk on its own and mean-pool its tokens into a vector. Because each chunk is embedded in isolation, its tokens only ever see their own words, so chunk B's vector has no idea it's about Nimbus's cloud division.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:200px;">
+              <div class="blbl">whole document, uncut</div>
+              <div class="sdoc">
+                <div class="dt">Nimbus — Q2 2026 Report</div>
+                <div class="db">…the cloud division… the revenue grew 3% over the previous quarter…</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">embed the<br>whole thing</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:210px;">
+              <div class="blbl">one vector per token</div>
+              <div class="vec" style="gap:3px; flex-wrap:wrap; max-width:200px;"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="blbl" style="margin-top:7px;">each token vector has "read" the full document</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>Late chunking flips the order: hand the <b>entire document</b> to the embedding model, uncut. It produces a vector for every token — and each one was computed while looking at the whole document, so context is baked in.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:210px;">
+              <div class="blbl">split the same way as before</div>
+              <div class="vec" style="gap:3px; flex-wrap:wrap; max-width:200px;">
+                <i style="background:var(--c2);"></i><i style="background:var(--c2);"></i><i style="background:var(--c2);"></i><i style="background:var(--c2);"></i><i style="background:var(--c2);"></i>
+                <i style="background:var(--c3);"></i><i style="background:var(--c3);"></i><i style="background:var(--c3);"></i><i style="background:var(--c3);"></i><i style="background:var(--c3);"></i>
+                <i style="background:var(--c5);"></i><i style="background:var(--c5);"></i><i style="background:var(--c5);"></i><i style="background:var(--c5);"></i><i style="background:var(--c5);"></i><i style="background:var(--c5);"></i>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">mean-pool<br>each group</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:130px;">
+              <div class="blbl">chunk vectors</div>
+              <div class="stack" style="gap:8px; align-items:flex-start;">
+                <span class="pill" style="background:var(--c2); border-color:var(--c2); color:#fff;">chunk A</span>
+                <span class="pill" style="background:var(--c3); border-color:var(--c3); color:#fff;">chunk B</span>
+                <span class="pill" style="background:var(--c5); border-color:var(--c5); color:#fff;">chunk C</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>Split with the <b>very same boundaries</b> and mean-pool each group — exactly as before. The only difference: these token vectors have already read the whole document, so the chunks come out context-rich. Cut late, not early.</p>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="dots"></div>
+    </div>
+  </div>
+  <p>It's elegant and cheap: no LLM calls and no bigger index — just one embedding pass over the document, and the text is left completely alone. The catch is that it only works with a <b>mean-pooling</b> embedding model, since the whole trick relies on averaging token vectors. Many of the newest embedding models have moved to a <b>last-token</b> approach instead, which late chunking can't use. And as of 2026, the largest-context mean-pooling models top out around 8k tokens — well short of the 32k that last-token models reach — so for long documents this approach ends up fairly limited.</p>
+
+  <!-- ============ 5 ============ -->
+  <h2><span class="kicker">05 · On the radar</span>Interesting ideas worth noting</h2>
+  <p>That rounds out the practical toolkit. Before we wrap up, here are a few ideas I've come across that are clever and fun to think about, but that I wouldn't call practical or widely adopted yet — file them under "keep an eye on it." Notably, they all circle back to <span class="problem-tag p-where">Camp 1</span>: different takes on <em>where to cut</em>.</p>
+  <div class="cards">
+    <div class="card">
+      <h4>GraphSeg</h4>
+      <div class="svgwrap">
+        <svg width="180" height="90" viewBox="0 0 180 90">
+          <g stroke="var(--faint)" stroke-width="1.5">
+            <line x1="30" y1="30" x2="70" y2="20"/><line x1="30" y1="30" x2="55" y2="60"/>
+            <line x1="70" y1="20" x2="55" y2="60"/>
+            <line x1="120" y1="35" x2="150" y2="25"/><line x1="120" y1="35" x2="145" y2="65"/>
+            <line x1="150" y1="25" x2="145" y2="65"/>
+          </g>
+          <g>
+            <circle cx="30" cy="30" r="9" fill="var(--c2)"/><circle cx="70" cy="20" r="9" fill="var(--c2)"/><circle cx="55" cy="60" r="9" fill="var(--c2)"/>
+            <circle cx="120" cy="35" r="9" fill="var(--c5)"/><circle cx="150" cy="25" r="9" fill="var(--c5)"/><circle cx="145" cy="65" r="9" fill="var(--c5)"/>
+          </g>
+        </svg>
+      </div>
+      <p>Treat sentences as dots in a graph, draw links between similar ones, then let tightly-linked groups (communities) fall out as segments. Boundaries emerge from the connection pattern instead of a fixed threshold.</p>
+      <p class="verdict">// elegant, but heavier to run &amp; tune — niche adoption</p>
+    </div>
+    <div class="card">
+      <h4>Change-point detection</h4>
+      <div class="svgwrap">
+        <svg width="180" height="90" viewBox="0 0 180 90">
+          <polyline points="10,60 30,58 50,62 70,55" fill="none" stroke="var(--c3)" stroke-width="2.5"/>
+          <polyline points="70,55 90,30 110,34 130,28 160,32" fill="none" stroke="var(--c4)" stroke-width="2.5"/>
+          <line x1="70" y1="10" x2="70" y2="80" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <text x="74" y="20" font-size="10" fill="var(--accent)" font-family="monospace">change!</text>
+        </svg>
+      </div>
+      <p>Borrowed from time-series analysis: read the document position by position as a "topic signal," and mathematically detect the exact spots where the signal shifts. Cut there.</p>
+      <p class="verdict">// promising import from stats — not yet mainstream in RAG</p>
+    </div>
+    <div class="card">
+      <h4>NSP segmentation</h4>
+      <div class="svgwrap">
+        <svg width="180" height="90" viewBox="0 0 180 90">
+          <rect x="12" y="40" width="26" height="16" rx="3" fill="var(--c2)"/>
+          <rect x="44" y="40" width="26" height="16" rx="3" fill="var(--c2)"/>
+          <rect x="88" y="40" width="26" height="16" rx="3" fill="var(--c5)"/>
+          <rect x="120" y="40" width="26" height="16" rx="3" fill="var(--c5)"/>
+          <rect x="152" y="40" width="16" height="16" rx="3" fill="var(--c5)"/>
+          <line x1="81" y1="32" x2="81" y2="64" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <text x="60" y="26" font-size="9" fill="var(--accent)" font-family="monospace">cut here?</text>
+          <text x="20" y="80" font-size="9" fill="var(--faint)" font-family="monospace">keep · keep · CUT · keep</text>
+        </svg>
+      </div>
+      <p>Run a transformer over the text and, at each sentence boundary, have it classify whether that point is a topic break — much like BERT's next-sentence-prediction task. Cuts come from a learned classifier, not a hand-tuned threshold.</p>
+      <p class="verdict">// accurate, but needs a trained model — not plug-and-play</p>
+    </div>
+  </div>
+
+  <!-- ============ 6 ============ -->
+  <h2><span class="kicker">06 · Wrapping up</span>So what should I actually reach for?</h2>
+  <p>Chunking isn't a solved, one-size-fits-all step — it's a small toolbox, and the two questions to keep asking are: <em>am I cutting in the right places?</em> and <em>does each chunk know enough on its own?</em> Here's the cheat sheet for the five practical techniques:</p>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th>Technique</th><th>Solves</th><th>Pros</th><th>Cons</th><th>Reach for it when…</th></tr></thead>
+      <tbody>
+        <tr><td>Structure-aware</td><td><span class="problem-tag p-where">where</span></td><td>Fast, low-cost, no model calls.</td><td>Needs clean structure; long sections stay too big.</td><td>Your docs have real structure — headings, tables, contracts, manuals.</td></tr>
+        <tr><td>LLM chunking</td><td><span class="problem-tag p-where">where</span></td><td>Full-context boundaries; flexible via prompt; works on any doc.</td><td>Slow &amp; costly at scale; slightly unstable.</td><td>Structure is messy or high one-time cost is acceptable, and you need good quality chunks.</td></tr>
+        <tr><td>Parent–child</td><td><span class="problem-tag p-what">what</span></td><td>Simple &amp; cheap; no extra LLM calls.</td><td>Doesn't solve where to cut parents; stores two levels.</td><td>Small chunks search well but answers come out starved of context.</td></tr>
+        <tr><td>Contextual Retrieval</td><td><span class="problem-tag p-what">what</span></td><td>Big accuracy gains; split-agnostic; easy to add.</td><td>An LLM call per chunk; costly on huge corpora.</td><td>Chunks are ambiguous alone and you can afford an LLM pass while indexing.</td></tr>
+        <tr><td>Late chunking</td><td><span class="problem-tag p-what">what</span></td><td>Cheap; text untouched; no bigger index.</td><td>Needs a mean-pooling model; ~8k context limit.</td><td>You want whole-doc context in the vectors without rewriting any text.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>There's no single winner here — the right pick depends on your documents, your latency budget, and your scale. And these techniques aren't mutually exclusive: the strongest systems usually combine a Camp 1 technique to cut in the right places with a Camp 2 technique to give each chunk the context it needs. My advice is to start simple, measure your retrieval quality honestly, and only reach for a heavier technique once the numbers show you where it actually hurts.</p>
+  <p>Chunking rarely gets the spotlight, but it quietly decides how good your RAG can be. Get it right, and everything downstream has a much better shot.</p>
+
+  <p class="muted" style="font-size:14px; margin-top:36px;">Thanks for reading my notes, and hope you also learn something from it.</p>
+
+</div>
+
+<script>
+/* ---- keep the embedded blog in sync with the site's light/dark toggle ---- */
+(function(){
+  var root = document.documentElement;
+  try{
+    var saved = localStorage.getItem('kh-theme');
+    root.setAttribute('data-theme', saved || 'light');
+  }catch(e){}
+  window.addEventListener('storage', function(e){
+    if(e.key === 'kh-theme') root.setAttribute('data-theme', e.newValue || 'light');
+  });
+})();
+
+/* ---- tell the parent page how tall this embed is, so the iframe never clips ---- */
+function reportHeight(){
+  var h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+  if(h <= 0) return;
+  try{ if(window.frameElement){ window.frameElement.style.height = h + 'px'; } }catch(e){}
+  try{ if(window.parent && window.parent !== window){ window.parent.postMessage({type:'kh-embed-height', height:h}, '*'); } }catch(e){}
+}
+window.addEventListener('load', reportHeight);
+window.addEventListener('resize', reportHeight);
+[100,400,900,1600].forEach(function(t){ setTimeout(reportHeight, t); });
+
+/* ---- reusable stepper ---- */
+document.querySelectorAll('[data-stepper]').forEach(function(sp){
+  var steps = Array.prototype.slice.call(sp.querySelectorAll('.step'));
+  if(!steps.length) return;
+  var prev = sp.querySelector('[data-prev]');
+  var next = sp.querySelector('[data-next]');
+  var dotsWrap = sp.querySelector('.dots');
+  var counter = sp.querySelector('.counter');
+  var i = 0;
+
+  steps.forEach(function(_, idx){
+    var d = document.createElement('button');
+    d.className = 'dot'; d.type = 'button';
+    d.setAttribute('aria-label', 'Go to step ' + (idx+1));
+    d.addEventListener('click', function(){ go(idx); });
+    dotsWrap.appendChild(d);
+  });
+  var dots = Array.prototype.slice.call(dotsWrap.children);
+
+  function go(n){
+    i = Math.max(0, Math.min(steps.length-1, n));
+    steps.forEach(function(s, idx){ s.classList.toggle('active', idx===i); });
+    dots.forEach(function(d, idx){ d.classList.toggle('on', idx===i); });
+    if(prev) prev.disabled = (i===0);
+    if(next) next.disabled = (i===steps.length-1);
+    if(counter) counter.textContent = 'Step ' + (i+1) + ' / ' + steps.length;
+    reportHeight();
+  }
+  if(prev) prev.addEventListener('click', function(){ go(i-1); });
+  if(next) next.addEventListener('click', function(){ go(i+1); });
+  sp.tabIndex = 0;
+  sp.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowLeft'){ go(i-1); e.preventDefault(); }
+    else if(e.key === 'ArrowRight'){ go(i+1); e.preventDefault(); }
+  });
+  go(0);
+});
+</script>
+</body>
+</html>
