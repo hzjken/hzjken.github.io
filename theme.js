@@ -52,6 +52,15 @@
     });
   }
 
+  // seamless iframes can report their own height (works even cross-origin / file://)
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (!d || d.type !== 'kh-embed-height' || typeof d.height !== 'number' || d.height <= 0) return;
+    document.querySelectorAll('iframe.embed-frame').forEach(function (f) {
+      if (f.contentWindow === e.source) f.style.height = d.height + 'px';
+    });
+  });
+
   document.addEventListener('DOMContentLoaded', function () {
     glyph();
     // inject the sidebar collapse toggle (lives outside the sidebar so it stays visible)
