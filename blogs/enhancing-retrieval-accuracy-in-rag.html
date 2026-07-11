@@ -1,0 +1,1122 @@
+<!--
+title: Enhancing Retrieval Accuracy in RAG
+date: 2026-07-11
+tags: RAG, Retrieval, Search
+description: A practical, visual field guide to the techniques that actually lift retrieval accuracy in RAG — fixing the query, the search, the results, and knowing when to just let an agent drive.
+-->
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enhancing Retrieval Accuracy in RAG</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- theme tokens (mirrors the site) ---------- */
+:root{
+  --bg:#fafafa; --surface:#ffffff; --panel:#f2f3f5;
+  --fg:#101318; --muted:#5a616d; --faint:#8b93a1;
+  --border:#e6e8ec; --accent:#2563eb; --accent-soft:#e6effb;
+  /* semantic cluster palette */
+  --c1:#16a34a; --c2:#2563eb; --c3:#0d9488; --c4:#ea580c; --c5:#7c3aed;
+  --cn:#b6bcc6; --cw:#ffffff; --cw-bd:#cfd4dc;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;
+  --display:'Space Grotesk',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+html[data-theme="dark"]{
+  --bg:#0b0d11; --surface:#12151b; --panel:#161a21;
+  --fg:#e9ebef; --muted:#949bab; --faint:#6c7686;
+  --border:#222732; --accent:#60a5fa; --accent-soft:#16223c;
+  --c1:#22c55e; --c2:#3b82f6; --c3:#2dd4bf; --c4:#f97316; --c5:#a78bfa;
+  --cn:#454b57; --cw:#e8ecf2; --cw-bd:#aeb6c2;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;}
+body{
+  background:var(--bg); color:var(--fg);
+  font-family:var(--sans); line-height:1.62; font-size:16.5px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:880px; margin:0 auto; padding:8px 20px 60px;}
+
+/* ---------- typography ---------- */
+h2{font-family:var(--display); font-weight:600; font-size:26px; line-height:1.2;
+   margin:52px 0 6px; letter-spacing:-.2px;}
+h2 .kicker{display:block; font-family:var(--mono); font-size:12.5px; font-weight:500;
+   letter-spacing:1.2px; text-transform:uppercase; color:var(--accent); margin-bottom:8px;}
+h3{font-family:var(--display); font-weight:600; font-size:19px; margin:30px 0 4px;}
+p{margin:12px 0;}
+a{color:var(--accent);}
+strong{font-weight:600;}
+.lead{font-size:19px; line-height:1.6; color:var(--fg);}
+.muted{color:var(--muted);}
+code{font-family:var(--mono); font-size:.9em; background:var(--panel);
+  border:1px solid var(--border); border-radius:5px; padding:1px 6px;}
+hr{border:none; border-top:1px solid var(--border); margin:44px 0;}
+
+/* ---------- boxes / callouts ---------- */
+.tldr{background:var(--panel); border:1px solid var(--border); border-radius:14px;
+  padding:18px 22px; margin:22px 0 8px;}
+.tldr h4{margin:0 0 6px; font-family:var(--mono); font-size:12.5px; letter-spacing:1px;
+  text-transform:uppercase; color:var(--accent);}
+.tldr p{margin:6px 0;}
+.note{border-left:3px solid var(--accent); background:var(--accent-soft);
+  border-radius:0 10px 10px 0; padding:12px 18px; margin:20px 0; font-size:15.5px;}
+.note b{color:var(--accent);}
+.moves{margin:14px 0; padding:0; list-style:none;}
+.moves li{position:relative; padding-left:20px; margin:9px 0;}
+.moves li::before{content:""; position:absolute; left:2px; top:10px; width:7px; height:7px;
+  border-radius:2px; background:var(--c4);}
+
+/* ---------- generic diagram shells ---------- */
+.diagram{background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  padding:24px; margin:22px 0;}
+.flow{display:flex; flex-wrap:wrap; align-items:stretch; gap:10px; justify-content:center;}
+.arrow{display:flex; align-items:center; color:var(--faint); font-size:22px; font-weight:700;}
+
+/* ---------- mental-model: process on top, camps aligned below ---------- */
+.mmflow{display:flex; align-items:flex-start; justify-content:center; gap:8px; flex-wrap:wrap;}
+.mmcol{flex:1 1 150px; min-width:132px; display:flex; flex-direction:column; gap:8px;}
+.mm-proclbl{font-family:var(--mono); font-size:10px; letter-spacing:.8px; text-transform:uppercase;
+  color:var(--faint); text-align:center; margin-bottom:2px;}
+.mm-step{min-height:50px; display:flex; align-items:center; justify-content:center; text-align:center;
+  background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:8px 10px;
+  font-family:var(--mono); font-size:12px; color:var(--fg); line-height:1.3;}
+.mm-camp{border:1px solid var(--border); border-left-width:3px; border-radius:8px; padding:7px 11px;
+  font-size:12px; line-height:1.4; background:var(--surface); color:var(--muted);}
+.mm-camp b{font-family:var(--display); display:block; font-size:12.5px; margin-bottom:1px;}
+.mm-camp.k5{border-left-color:var(--c5);} .mm-camp.k2{border-left-color:var(--c2);}
+.mm-camp.k3{border-left-color:var(--c3);} .mm-camp.k4{border-left-color:var(--c4);}
+.mm-arrow{align-self:flex-start; margin-top:24px; color:var(--faint); font-size:20px; font-weight:700; flex:0 0 auto;}
+.mm-loop{margin:12px 0 0; border:1px dashed var(--c1); border-radius:10px; padding:9px 12px;
+  text-align:center; font-size:12.5px; color:var(--c1); line-height:1.4;}
+.mm-loop b{font-family:var(--display);}
+@media(max-width:620px){ .mm-arrow{transform:rotate(90deg); align-self:center; margin:0;} .mmcol{flex-basis:100%;} }
+
+/* ---------- stepper ---------- */
+.stepper{background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  margin:18px 0 8px; overflow:hidden; outline:none;}
+.stepper:focus-visible{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);}
+.stepper .head{display:flex; align-items:center; justify-content:space-between;
+  padding:12px 18px; border-bottom:1px solid var(--border); background:var(--panel);}
+.stepper .head .ttl{font-family:var(--mono); font-size:12.5px; letter-spacing:.6px; color:var(--muted);}
+.stepper .head .counter{font-family:var(--mono); font-size:12.5px; color:var(--accent); font-weight:500;}
+.stage{position:relative; min-height:330px; padding:26px 24px 6px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;}
+.step{display:none; width:100%;}
+.step.active{display:block; animation:fade .25s ease;}
+@keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
+.stage .viz{display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:14px; min-height:210px;}
+.cap{margin-top:14px; text-align:center; font-size:15px; color:var(--fg);
+  max-width:640px; margin-left:auto; margin-right:auto;}
+.cap .n{display:inline-block; background:var(--accent); color:#fff; font-family:var(--mono);
+  font-size:12px; font-weight:600; border-radius:999px; padding:1px 9px; margin-right:8px;}
+.controls{display:flex; align-items:center; justify-content:center; gap:16px;
+  padding:14px; border-top:1px solid var(--border); background:var(--panel);}
+.dots{display:flex; gap:7px;}
+.dot{width:10px; height:10px; border-radius:50%; padding:0; border:none; cursor:pointer;
+  background:var(--border); transition:.15s;}
+.dot:hover{background:var(--faint);}
+.dot.on{background:var(--accent); transform:scale(1.3);}
+
+/* generic little pieces used inside steps */
+.stack{display:flex; flex-direction:column; gap:10px; align-items:center;}
+.pill{background:var(--panel); border:1px solid var(--border); border-radius:10px;
+  padding:8px 14px; font-size:13.5px; max-width:520px; text-align:center;}
+.pill.hl{border-color:var(--accent); background:var(--accent-soft);}
+.pill.mono{font-family:var(--mono); font-size:12.5px;}
+.row{display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap;}
+.vec{display:flex; gap:5px; align-items:center;}
+.vec i{width:9px; height:20px; border-radius:2px; background:var(--accent); opacity:.8;}
+
+/* ---------- split layout (input → process → output) ---------- */
+.split{display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; width:100%;}
+.split .colv{flex:1 1 290px; min-width:240px; max-width:350px;}
+.split .mid{display:flex; flex-direction:column; align-items:center; gap:6px; flex:0 0 auto;}
+.split .mid .arrow2{font-size:22px; font-weight:700; line-height:1; color:var(--faint);}
+.split .mid .midlbl{font-family:var(--mono); font-size:10px; letter-spacing:.5px; color:var(--faint);
+  text-align:center; line-height:1.35;}
+@media(max-width:620px){ .split .mid .arrow2{transform:rotate(90deg);} }
+.colcap{font-family:var(--mono); font-size:10.5px; letter-spacing:.8px; text-transform:uppercase;
+  color:var(--faint); margin:0 0 6px 2px;}
+.scol{flex:0 1 auto; text-align:left; min-width:0;}
+.ar{color:var(--faint); font-size:22px; font-weight:700; flex:0 0 auto; line-height:1;}
+@media(max-width:620px){ .ar{transform:rotate(90deg);} }
+.blbl{font-family:var(--mono); font-size:10px; color:var(--muted); margin-bottom:5px;}
+
+/* small doc card */
+.sdoc{background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:13px 15px; box-shadow:0 1px 4px rgba(0,0,0,.06); font-size:12px;}
+.sdoc .dt{font-family:var(--display); font-weight:600; font-size:13.5px; margin-bottom:7px;}
+.sdoc .dh{font-weight:600; color:var(--fg); margin:9px 0 2px;}
+.sdoc .db{color:var(--muted); line-height:1.45;}
+.sdoc .dtable{display:grid; grid-template-columns:1fr auto; gap:1px; background:var(--border);
+  border:1px solid var(--border); border-radius:5px; overflow:hidden; margin:6px 0;}
+.sdoc .dtable span{background:var(--surface); padding:3px 8px; font-size:10.5px; color:var(--muted);}
+.hlt{background:var(--accent-soft); color:var(--fg); border-radius:3px; padding:0 3px;}
+
+/* wordmark / engine / llm chips */
+.wordmark{display:inline-flex; align-items:center; gap:7px; font-family:var(--display);
+  font-weight:600; font-size:14px; padding:8px 14px; border-radius:9px;
+  border:1px solid var(--border); background:var(--panel);}
+.wordmark svg{display:block;}
+.engine{display:inline-flex; align-items:center; gap:7px; font-family:var(--display);
+  font-weight:600; font-size:12.5px; padding:7px 13px; border-radius:9px;
+  border:1px solid var(--border); background:var(--panel);}
+.llmchip{display:inline-flex; align-items:center; gap:6px; font-family:var(--display); font-weight:600;
+  font-size:13px; padding:7px 13px; border-radius:9px; border:1px solid var(--c2);
+  background:var(--accent-soft); color:var(--c2);}
+.prompt{font-family:var(--mono); font-size:10px; line-height:1.5; text-align:left; color:var(--muted);
+  background:var(--surface); border:1px dashed var(--border); border-radius:8px; padding:8px 10px;
+  max-width:230px; margin-top:9px;}
+.prompt b{color:var(--fg);}
+.jsonout{font-family:var(--mono); font-size:10.5px; line-height:1.5; text-align:left; color:var(--fg);
+  background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 10px;
+  white-space:pre-wrap; margin-bottom:8px;}
+.jsonout .jw{color:var(--faint);}
+/* ---------- agentic RAG: agent + toolset ---------- */
+.agentbox{display:flex; flex-direction:column; align-items:stretch; gap:7px;
+  border:1.5px solid var(--c1); border-radius:12px; padding:11px 12px; background:var(--surface); min-width:128px;}
+.agent-chip{display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  font-family:var(--display); font-weight:600; font-size:13px; color:var(--c1);}
+.toolset{display:flex; flex-direction:column; gap:5px;}
+.tool{font-family:var(--mono); font-size:11px; padding:4px 8px; border-radius:7px;
+  border:1px solid var(--border); color:var(--muted); background:var(--panel); text-align:center; transition:.2s;}
+.tool.active{border:1.5px solid var(--c1); color:var(--c1); font-weight:600; background:var(--surface);}
+.tool.dim{opacity:.38;}
+
+/* ---------- ranked result lists ---------- */
+.rlist{display:flex; flex-direction:column; gap:6px; width:100%; max-width:340px;}
+.rlist.narrow{max-width:250px;}
+.ritem{display:flex; align-items:center; gap:9px; background:var(--surface); border:1px solid var(--border);
+  border-radius:9px; padding:7px 10px; font-size:12px; transition:.2s;}
+.ritem .rank{font-family:var(--mono); font-size:11px; color:var(--faint); width:16px; text-align:right; flex:0 0 auto;}
+.ritem .rlabel{flex:1 1 auto; color:var(--muted); line-height:1.3; min-width:0;}
+.ritem.hit{border-color:var(--accent); background:var(--accent-soft);}
+.ritem.hit .rlabel{color:var(--fg); font-weight:600;}
+.ritem.dim{opacity:.45;}
+.cbar{width:8px; height:20px; border-radius:3px; flex:0 0 auto;}
+.cbar.c1{background:var(--c1);} .cbar.c2{background:var(--c2);} .cbar.c3{background:var(--c3);}
+.cbar.c4{background:var(--c4);} .cbar.c5{background:var(--c5);} .cbar.cn{background:var(--cn);}
+.strack{width:46px; height:6px; border-radius:3px; background:var(--panel); border:1px solid var(--border);
+  overflow:hidden; flex:0 0 auto;}
+.strack > i{display:block; height:100%; background:var(--accent);}
+
+/* ---------- section 5 cards ---------- */
+.cards{display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:16px; margin:22px 0;}
+.card{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px 22px;}
+.card h4{margin:0 0 2px; font-family:var(--display); font-size:17px;}
+.card .credit{font-family:var(--mono); font-size:11px; color:var(--faint);}
+.card .svgwrap{margin:14px 0; display:flex; justify-content:center;}
+.card p{font-size:14.5px; margin:8px 0;}
+.card .verdict{font-size:13px; color:var(--muted); font-family:var(--mono); margin-top:10px;}
+@media(max-width:640px){ .cards{grid-template-columns:1fr;} }
+
+/* ---------- summary table ---------- */
+.tblwrap{overflow-x:auto; margin:20px 0;}
+table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:820px;}
+th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--border); vertical-align:top;}
+th{font-family:var(--mono); font-size:12px; letter-spacing:.5px; text-transform:uppercase;
+   color:var(--muted); background:var(--panel);}
+tr td:first-child{font-weight:600; white-space:nowrap;}
+.problem-tag{display:inline-block; font-family:var(--mono); font-size:11px; padding:2px 8px;
+  border-radius:999px; border:1px solid var(--border); white-space:nowrap;}
+.p-q{color:var(--c5); border-color:var(--c5);}
+.p-s{color:var(--c2); border-color:var(--c2);}
+.p-r{color:var(--c4); border-color:var(--c4);}
+.p-src{color:var(--c3); border-color:var(--c3);}
+.p-loop{color:var(--c1); border-color:var(--c1);}
+.stars{white-space:nowrap; font-size:13.5px; letter-spacing:1.5px;}
+.stars .f{color:var(--c4);}
+.stars .e{color:var(--faint);}
+.stars .h{position:relative; display:inline-block; color:var(--faint);}
+.stars .h::before{content:"★"; position:absolute; left:0; top:0; width:50%; height:100%;
+  overflow:hidden; color:var(--c4);}
+
+/* ---------- camp subtitles ---------- */
+.camp{margin:56px 0 10px; padding-bottom:10px; border-bottom:1px solid var(--border);}
+.camp .eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:1.6px;
+  text-transform:uppercase;}
+.camp .ctitle{font-family:var(--display); font-weight:600; font-size:22px; margin-top:4px;
+  letter-spacing:-.2px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ 1 ============ -->
+  <h2><span class="kicker">01 · The basics</span>What does "retrieval" actually do?</h2>
+  <p>In a <strong>RAG</strong> (Retrieval-Augmented Generation) system, before the LLM answers, you fetch a handful of relevant chunks from your knowledge base and hand them over as context. That fetch is <strong>retrieval</strong> — and it decides everything: the right chunks and the model answers well; the wrong ones and it just hallucinates.</p>
+  <p>So "retrieval accuracy" comes down to one question: <em>did the right chunk reach the LLM?</em> Everything here is a different way to enhance it — each fixing a different reason it didn't. I'm skipping chunking (that's a <a href="practical-chunking-2026.html">separate post</a>) to focus purely on how you <em>search</em> — starting with why the obvious approach falls short.</p>
+
+  <!-- ============ 2 ============ -->
+  <h2><span class="kicker">02 · The starting point</span>Vector-only, single-shot RAG is dead</h2>
+  <p>Embed the query, grab the top-k by cosine similarity, done — that's the starter kit, and on any serious corpus it leaves a lot of right answers on the floor.</p>
+  <p>The floor in 2026 is higher than that: <strong>hybrid search plus a reranker</strong>. That's the baseline you should assume, and it's cheap. Everything beyond it — the query tricks, the structured sources, the agent loops — is worth adding <em>only when you can name the failure it fixes</em>. </p>
+  <p>Let's start by seeing exactly where plain vector search breaks.</p>
+
+  <!-- ============ 3 ============ -->
+  <h2><span class="kicker">03 · Where it breaks</span>Plain vector search, and its four blind spots</h2>
+  <p>Vector search is simple: embed every chunk into a vector once, and at query time embed the question and return the chunks whose vectors sit closest. It's great at <em>meaning</em> — "how do I keep my data safe?" finds a chunk about "encryption and access controls" even with no shared words.</p>
+  <div class="diagram">
+    <div class="split">
+      <div class="scol" style="max-width:200px;">
+        <div class="blbl">query</div>
+        <div class="pill hl" style="margin:0;">"How do I keep my data safe?"</div>
+      </div>
+      <div class="mid">
+        <div class="midlbl">embed</div>
+        <div class="vec"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="midlbl">nearest by<br>cosine</div>
+      </div>
+      <div class="ar">→</div>
+      <div class="scol" style="max-width:320px;">
+        <div class="rlist">
+          <div class="ritem hit"><span class="rank">1</span><span class="cbar c2"></span><span class="rlabel">Security · "data is encrypted at rest &amp; in transit…"</span></div>
+          <div class="ritem"><span class="rank">2</span><span class="cbar cn"></span><span class="rlabel">Access · "roles &amp; single sign-on…"</span></div>
+          <div class="ritem"><span class="rank">3</span><span class="cbar cn"></span><span class="rlabel">Backups · "nightly snapshots…"</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p>That semantic matching is the whole appeal — but it's also where the blind spots come from. Four failure modes show up again and again, and each one names a camp of fixes:</p>
+  <div class="tldr">
+    <p><strong style="color:var(--c5)">1 · The question is worded badly.</strong> Vague, conversational, full of pronouns ("is it down again?"), or just phrased differently from the answer. The search is only as good as the query you feed it.</p>
+    <p><strong style="color:var(--c2)">2 · It misses exact terms.</strong> Product codes, error IDs, names, acronyms — "X-200" or "ERR_507" — get blurred into the vector. Semantics can't do exact match, and keyword search would've nailed it.</p>
+    <p><strong style="color:var(--c4)">3 · Close isn't the same as best.</strong> The top-k are topically near the query, but the one truly correct chunk is sitting at rank 8, buried under lookalikes.</p>
+    <p><strong style="color:var(--c3)">4 · Some questions aren't a lookup at all.</strong> "Total revenue across all regions?" needs a sum from a database; "what are the main themes?" needs the whole corpus. No single chunk holds the answer.</p>
+  </div>
+  <p>Keep those four in mind — every technique below is aimed at one of them.</p>
+
+  <!-- ============ 4 ============ -->
+  <h2><span class="kicker">04 · The good stuff</span>The techniques that actually lift accuracy</h2>
+  <p>Here's the mental model that ties it all together. The top row is the path a query actually takes; each camp below sits under the step it fixes.</p>
+  <div class="diagram">
+    <div class="mm-proclbl">the retrieval process</div>
+    <div class="mmflow">
+      <div class="mmcol">
+        <div class="mm-step">the query comes in</div>
+        <div class="mm-camp k5"><b style="color:var(--c5)">Camp 1</b>Fix the query before you search</div>
+      </div>
+      <div class="mm-arrow">→</div>
+      <div class="mmcol">
+        <div class="mm-step">look for matching chunks</div>
+        <div class="mm-camp k2"><b style="color:var(--c2)">Camp 2</b>Fix the search engine itself</div>
+        <div class="mm-camp k3"><b style="color:var(--c3)">Camp 4</b>Use structured data/filters</div>
+      </div>
+      <div class="mm-arrow">→</div>
+      <div class="mmcol">
+        <div class="mm-step">candidates come back</div>
+        <div class="mm-camp k4"><b style="color:var(--c4)">Camp 3</b>Refine the results</div>
+      </div>
+      <div class="mm-arrow">→</div>
+      <div class="mmcol">
+        <div class="mm-step">top-k → LLM</div>
+      </div>
+    </div>
+    <div class="mm-loop"><b>Camp 5</b> · wrap the whole thing in a loop, and let an agent redo any step until it has enough &nbsp;↺</div>
+  </div>
+  <!-- ---------- CAMP 1 ---------- -->
+  <div class="camp">
+    <div class="eyebrow" style="color:var(--c5)">Camp 1</div>
+    <div class="ctitle">Fix the query before it hits the index</div>
+  </div>
+  <p>The cheapest wins often come before you search at all. The user's raw question is frequently the weakest link — so clean it up, or turn it into something the index can match.</p>
+
+  <h3>Query rewriting</h3>
+  <p>The simplest move: have an LLM rewrite the raw query into a cleaner, self-contained one — resolve pronouns, pull in context from the chat history, fix typos, spell out what the user actually means. In a conversational assistant it's basically mandatory, since follow-up questions are full of "it" and "that."</p>
+  <div class="diagram">
+    <div class="split">
+      <div class="scol" style="max-width:230px;">
+        <div class="blbl">raw query (turn 3 of a chat)</div>
+        <div class="pill" style="margin:0;">"so is it down again like yesterday?"</div>
+      </div>
+      <div class="mid">
+        <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+        <div class="arrow2">→</div>
+        <div class="midlbl">rewrite</div>
+      </div>
+      <div class="scol" style="max-width:250px;">
+        <div class="blbl">rewritten query</div>
+        <div class="pill hl" style="margin:0;">"Is the Nimbus X-200 service currently experiencing an outage?"</div>
+      </div>
+    </div>
+  </div>
+  <p>Cheap, low-risk, high-ROI — one small LLM call, and it's basically table stakes for chat-based RAG. The only real downside: on a query that was already clean, the rewrite is wasted effort, and a careless rewrite can drift from what the user meant.</p>
+
+  <h3>HyDE — search with a fake answer</h3>
+  <p>Here's a neat insight: a short question and the passage that answers it often don't look much alike in embedding space. A <em>question</em> and an <em>answer</em> are different kinds of text. So HyDE (Hypothetical Document Embeddings) flips it — ask the LLM to write a fake answer first, then embed <em>that</em> and search with it. A plausible answer sits much closer to the real answer-docs than the question ever did.</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">HyDE · HYPOTHETICAL DOCUMENT EMBEDDINGS</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:200px;">
+              <div class="blbl">short question</div>
+              <div class="pill hl" style="margin:0;">"How does Nimbus keep my data safe?"</div>
+            </div>
+            <div class="mid"><div class="midlbl">vs.</div></div>
+            <div class="scol" style="max-width:250px;">
+              <div class="blbl">the real answer chunk</div>
+              <div class="sdoc">
+                <div class="dt">Security</div>
+                <div class="db">All customer data is encrypted at rest with AES-256 and in transit via TLS 1.3, governed by SSO and role-based access.</div>
+              </div>
+            </div>
+          </div>
+          <div class="pill" style="margin-top:14px; border-color:var(--c4); color:var(--c4);">short vague question ✗ detailed technical answer → low similarity</div>
+        </div>
+        <p class="cap"><span class="n">1</span>The problem: the question is short and vague, the answer is long and technical. As vectors, they're not all that close — so the right chunk can rank lower than it should.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:180px;">
+              <div class="blbl">question</div>
+              <div class="pill hl" style="margin:0;">"How does Nimbus keep my data safe?"</div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt">Write a short passage that <b>answers</b> this question, as if from the docs.</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:230px;">
+              <div class="blbl">hypothetical answer (maybe wrong!)</div>
+              <div class="pill" style="margin:0; border-color:var(--c1);">"Nimbus protects data with encryption at rest and in transit, plus access controls and single sign-on for accounts."</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>Ask the LLM to <b>write a hypothetical answer</b> — no retrieval yet. It may get details wrong, and that's fine; we only need it to <em>look like</em> a real answer.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:230px;">
+              <div class="blbl">embed the fake answer, not the question</div>
+              <div class="pill" style="margin:0; border-color:var(--c1);">"Nimbus protects data with encryption…"</div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">embed</div>
+              <div class="vec"><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="midlbl">search</div>
+            </div>
+            <div class="scol" style="max-width:300px;">
+              <div class="rlist">
+                <div class="ritem hit"><span class="rank">1</span><span class="cbar c2"></span><span class="rlabel">Security · encryption at rest &amp; in transit</span><span class="strack"><i style="width:94%"></i></span></div>
+                <div class="ritem"><span class="rank">2</span><span class="cbar cn"></span><span class="rlabel">Access · roles &amp; SSO</span><span class="strack"><i style="width:71%"></i></span></div>
+                <div class="ritem dim"><span class="rank">3</span><span class="cbar cn"></span><span class="rlabel">Backups · nightly snapshots</span><span class="strack"><i style="width:55%"></i></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>Search with the <b>fake answer's</b> vector. It looks like a real answer, so it lands right on the real one — the security chunk that the bare question left at rank 6 now sits at rank 1.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>Often the single highest-ROI query trick, especially on knowledge-dense corpora. The cost is one extra generation per query (latency), and the sharp edge is that a confidently wrong hypothetical can steer retrieval astray — so it helps most when a good answer is guessable, and least on rare, novel entities the model can't imagine. Introduced in <a href="https://arxiv.org/abs/2212.10496" target="_blank" rel="noopener">Gao et al., 2023</a>.</p>
+
+  <h3>Multi-query + RAG-Fusion</h3>
+  <p>One phrasing of a question only reaches so far — synonyms and alternate wordings pull in different chunks. So generate several versions of the query, search each, and merge. The trick is <em>how</em> you merge: a naive union just dumps everything together. <strong>RAG-Fusion</strong> merges intelligently with <strong>Reciprocal Rank Fusion (RRF)</strong> — chunks that rank well across several variants float to the top.</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">RAG-FUSION · MULTI-QUERY + RRF</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:150px;">
+              <div class="blbl">one query</div>
+              <div class="pill hl" style="margin:0;">"cancel my plan"</div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="arrow2">→</div>
+              <div class="midlbl">3 variants</div>
+            </div>
+            <div class="scol" style="max-width:270px;">
+              <div class="stack" style="gap:6px; align-items:stretch;">
+                <div class="pill mono" style="margin:0;">A · "How do I cancel my Nimbus subscription?"</div>
+                <div class="pill mono" style="margin:0;">B · "steps to end a Nimbus plan"</div>
+                <div class="pill mono" style="margin:0;">C · "Nimbus account termination / downgrade"</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>Ask the LLM for a few <b>alternate phrasings</b> of the same question. Each casts a slightly different net over the index.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="row" style="align-items:flex-start; gap:14px;">
+            <div class="scol" style="max-width:180px;">
+              <div class="blbl">A → results</div>
+              <div class="rlist narrow">
+                <div class="ritem"><span class="rank">1</span><span class="cbar cn"></span><span class="rlabel">Billing FAQ</span></div>
+                <div class="ritem hit"><span class="rank">2</span><span class="cbar c4"></span><span class="rlabel">Cancel a plan</span></div>
+                <div class="ritem"><span class="rank">3</span><span class="cbar cn"></span><span class="rlabel">Refunds</span></div>
+              </div>
+            </div>
+            <div class="scol" style="max-width:180px;">
+              <div class="blbl">B → results</div>
+              <div class="rlist narrow">
+                <div class="ritem hit"><span class="rank">1</span><span class="cbar c4"></span><span class="rlabel">Cancel a plan</span></div>
+                <div class="ritem"><span class="rank">2</span><span class="cbar cn"></span><span class="rlabel">Downgrade tiers</span></div>
+                <div class="ritem"><span class="rank">3</span><span class="cbar cn"></span><span class="rlabel">Billing FAQ</span></div>
+              </div>
+            </div>
+            <div class="scol" style="max-width:180px;">
+              <div class="blbl">C → results</div>
+              <div class="rlist narrow">
+                <div class="ritem"><span class="rank">1</span><span class="cbar cn"></span><span class="rlabel">Delete account</span></div>
+                <div class="ritem"><span class="rank">2</span><span class="cbar cn"></span><span class="rlabel">Downgrade tiers</span></div>
+                <div class="ritem hit"><span class="rank">3</span><span class="cbar c4"></span><span class="rlabel">Cancel a plan</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>Search each variant separately — three ranked lists. Notice the <b style="color:var(--c4)">"Cancel a plan"</b> chunk shows up in all three, but never clearly on top; different distractors clutter each list.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="stack">
+            <div class="jsonout" style="max-width:420px;">RRF: each chunk scores <b>Σ 1 / (k + rank)</b>   ·   k ≈ 60
+
+<span class="jw">Cancel a plan</span>  →  1/62 + 1/61 + 1/63  =  0.0480   ← in all 3 lists
+<span class="jw">Billing FAQ</span>   →  1/61 + 1/63          =  0.0323
+<span class="jw">Downgrade tiers</span>→  1/62 + 1/62          =  0.0323
+<span class="jw">Delete account</span> →  1/61                  =  0.0164</div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span><b>Reciprocal Rank Fusion.</b> Every chunk earns points from each list based on its rank — higher rank, more points — and the points add up. Appearing across <em>multiple</em> lists beats ranking #1 in just one. No score-scaling or tuning needed.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="scol" style="max-width:300px;">
+            <div class="blbl">fused final ranking</div>
+            <div class="rlist">
+              <div class="ritem hit"><span class="rank">1</span><span class="cbar c4"></span><span class="rlabel">Cancel a plan</span><span class="strack"><i style="width:96%"></i></span></div>
+              <div class="ritem"><span class="rank">2</span><span class="cbar cn"></span><span class="rlabel">Billing FAQ</span><span class="strack"><i style="width:64%"></i></span></div>
+              <div class="ritem"><span class="rank">3</span><span class="cbar cn"></span><span class="rlabel">Downgrade tiers</span><span class="strack"><i style="width:64%"></i></span></div>
+              <div class="ritem dim"><span class="rank">4</span><span class="cbar cn"></span><span class="rlabel">Delete account</span><span class="strack"><i style="width:33%"></i></span></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">4</span>The chunk that was consistently relevant — but never obviously #1 — rises to the top, while one-list distractors sink. That's the win over a naive union.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>Solid recall boost, and RRF is a genuinely useful little primitive you'll see again in a second. The cost is real though: N× the retrieval calls plus a generation call, so more latency. Reach for it when phrasing sensitivity is hurting recall, not by default. Coined in <a href="https://medium.com/data-science/forget-rag-the-future-is-rag-fusion-1147298d8ad1" target="_blank" rel="noopener">"Forget RAG, the Future is RAG-Fusion"</a>.</p>
+
+  <!-- ---------- CAMP 2 ---------- -->
+  <div class="camp">
+    <div class="eyebrow" style="color:var(--c2)">Camp 2</div>
+    <div class="ctitle">Fix the search engine itself</div>
+  </div>
+  <p>No amount of query polish helps if the engine underneath is half-blind. Pure vector search can't do exact matches — and that's exactly what this camp fixes. This is the highest-leverage camp, and where your baseline should live.</p>
+
+  <h3>Hybrid search (dense + BM25, fused with RRF)</h3>
+  <p>The core idea: run <em>two</em> searches and merge them. A <strong>dense</strong> (vector) search for meaning, and a <strong>sparse</strong> keyword search — classic <strong>BM25</strong> — for exact terms. Each covers the other's blind spot: dense misses "X-200", BM25 misses "won't boot" ≈ "fails to power on". Merge the two ranked lists (with RRF again) and you get the best of both.</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">HYBRID SEARCH · DENSE + BM25</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="stack">
+            <div class="pill hl">"Nimbus X-200 won't boot"</div>
+            <div class="row" style="gap:30px;">
+              <div class="engine" style="border-color:var(--c2); color:var(--c2);">Dense · semantic</div>
+              <div class="engine" style="border-color:var(--c4); color:var(--c4);">BM25 · keyword</div>
+            </div>
+            <div class="midlbl">the same query goes to both engines</div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>This query has both a <b>meaning</b> part ("won't boot") and an <b>exact-term</b> part ("X-200"). Send it to two engines at once — a semantic one and a keyword one.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="row" style="align-items:flex-start; gap:22px;">
+            <div class="scol" style="max-width:250px;">
+              <div class="blbl" style="color:var(--c2)">Dense · gets "won't boot" ≈ "fails to power on"</div>
+              <div class="rlist narrow">
+                <div class="ritem"><span class="rank">1</span><span class="cbar cn"></span><span class="rlabel">General startup troubleshooting</span></div>
+                <div class="ritem"><span class="rank">2</span><span class="cbar cn"></span><span class="rlabel">Device won't power on (generic)</span></div>
+                <div class="ritem hit"><span class="rank">4</span><span class="cbar c1"></span><span class="rlabel">X-200 boot failure fix</span></div>
+              </div>
+              <div class="blbl" style="margin-top:6px; color:var(--c4)">…but blurs "X-200"</div>
+            </div>
+            <div class="scol" style="max-width:250px;">
+              <div class="blbl" style="color:var(--c4)">BM25 · nails the exact token "X-200"</div>
+              <div class="rlist narrow">
+                <div class="ritem"><span class="rank">1</span><span class="cbar cn"></span><span class="rlabel">X-200 spec sheet</span></div>
+                <div class="ritem"><span class="rank">2</span><span class="cbar cn"></span><span class="rlabel">X-200 launch announcement</span></div>
+                <div class="ritem hit"><span class="rank">3</span><span class="cbar c1"></span><span class="rlabel">X-200 boot failure fix</span></div>
+              </div>
+              <div class="blbl" style="margin-top:6px; color:var(--c2)">…but ignores "won't boot" meaning</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>Each engine half-solves it. Dense understands "won't boot" but treats "X-200" as noise; BM25 locks onto "X-200" but can't tell a boot fix from a spec sheet. The <b style="color:var(--c1)">right chunk</b> is stuck mid-list in both.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:230px;">
+              <div class="blbl">two lists, incompatible scores</div>
+              <div class="row" style="gap:8px; justify-content:flex-start;">
+                <div class="engine" style="border-color:var(--c2); color:var(--c2); font-size:11px; padding:5px 9px;">Dense</div>
+                <div class="engine" style="border-color:var(--c4); color:var(--c4); font-size:11px; padding:5px 9px;">BM25</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">RRF<br>merge by rank</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:280px;">
+              <div class="blbl">merged ranking</div>
+              <div class="rlist">
+                <div class="ritem hit"><span class="rank">1</span><span class="cbar c1"></span><span class="rlabel">X-200 boot failure fix</span><span class="strack"><i style="width:95%"></i></span></div>
+                <div class="ritem"><span class="rank">2</span><span class="cbar cn"></span><span class="rlabel">X-200 spec sheet</span><span class="strack"><i style="width:58%"></i></span></div>
+                <div class="ritem"><span class="rank">3</span><span class="cbar cn"></span><span class="rlabel">General startup troubleshooting</span><span class="strack"><i style="width:52%"></i></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>RRF merges the two lists by rank — no need to reconcile their incompatible score scales. The one chunk that ranked <em>decently in both</em> wins outright and jumps to #1.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>This is the <strong>production default</strong> — every major vector database ships it, RRF needs no tuning, and it's the single biggest robustness upgrade over vector-only. The only real cost is running and maintaining two indexes instead of one.</p>
+  <div class="note"><b>Upgrading the keyword leg: SPLADE.</b> A smarter sparse alternative to BM25 — a small model reweights terms and adds related ones (a doc about "automobile" also lights up for "car"), keeping exact-match precision while fixing keyword search's synonym blindness. Slower than BM25 and more of a specialist pick, but a drop-in upgrade for the sparse side of hybrid (<a href="https://arxiv.org/abs/2109.10086" target="_blank" rel="noopener">Formal et al.</a>).</div>
+  <h3>Stronger (or fine-tuned) embeddings</h3>
+  <p>The dense side is only as good as the <strong>embedding model</strong> behind it — so a stronger model is often the single highest-ROI change you can make, lifting <em>every</em> query at once. Worth a look: <strong>OpenAI text-embedding-3</strong>, <strong>Cohere Embed v4</strong>, <strong>Voyage voyage-3-large</strong>, <strong>Google Gemini Embedding</strong>, or open-weight <strong>Qwen3-Embedding</strong>, <strong>BGE</strong>, and <strong>NV-Embed</strong> — the <a href="https://huggingface.co/spaces/mteb/leaderboard" target="_blank" rel="noopener">MTEB leaderboard</a> ranks them, but always test on your own corpus.</p>
+  <p>You can also <strong>fine-tune</strong> one on your domain, but treat it as a last resort: labeling data and running a training pipeline is far more effort than anything else here. Reach for a stronger off-the-shelf model first.</p>
+
+  <!-- ---------- CAMP 3 ---------- -->
+  <div class="camp">
+    <div class="eyebrow" style="color:var(--c4)">Camp 3</div>
+    <div class="ctitle">Refine the results after they come back</div>
+  </div>
+  <p>Your first-stage search is built for speed over a huge index, so it's a little coarse — the truly best chunk often lands in the top 50 but not the top 5. This camp does a second, slower, sharper pass over just those candidates.</p>
+
+  <h3>Reranking</h3>
+  <p>Here's the key difference. First-stage search is a <em>bi-encoder</em>: it embeds the query and each chunk <em>separately</em>, so it never actually compares them word-for-word — fast, but coarse. A <strong>reranker</strong> is a <em>cross-encoder</em>: it reads the query and one chunk <em>together</em> in a single pass and scores how well they truly match. Too slow to run over millions of chunks, perfect over the top ~50.</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">RERANKING · CROSS-ENCODER</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:150px;">
+              <div class="blbl">query</div>
+              <div class="pill hl" style="margin:0;">"refund if I cancel early?"</div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">fast first-stage<br>(hybrid) · top 8</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:280px;">
+              <div class="rlist">
+                <div class="ritem"><span class="rank">1</span><span class="cbar cn"></span><span class="rlabel">How to cancel a plan</span></div>
+                <div class="ritem"><span class="rank">2</span><span class="cbar cn"></span><span class="rlabel">Billing cycle &amp; invoices</span></div>
+                <div class="ritem"><span class="rank">3</span><span class="cbar cn"></span><span class="rlabel">Downgrade vs cancel</span></div>
+                <div class="ritem dim"><span class="rank">…</span><span class="cbar cn"></span><span class="rlabel">&nbsp;</span></div>
+                <div class="ritem hit"><span class="rank">7</span><span class="cbar c4"></span><span class="rlabel">Refund policy · early cancellation</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>First-stage search returns ~8 candidates fast. They're all <em>about</em> billing, so the truly correct one — the <b style="color:var(--c4)">refund policy</b> — sits buried at rank 7, lost among topical lookalikes.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:230px;">
+              <div class="stack" style="gap:6px; align-items:stretch;">
+                <div class="pill mono" style="margin:0;">(query + "How to cancel a plan")</div>
+                <div class="pill mono" style="margin:0;">(query + "Billing cycle…")</div>
+                <div class="pill mono" style="margin:0; border-color:var(--c4);">(query + "Refund policy…")</div>
+              </div>
+              <div class="blbl" style="margin-top:6px;">each pair read together, in full</div>
+            </div>
+            <div class="mid">
+              <div class="engine" style="border-color:var(--c4); color:var(--c4);">Reranker</div>
+              <div class="arrow2">→</div>
+              <div class="midlbl">true-match<br>score</div>
+            </div>
+            <div class="scol" style="max-width:150px;">
+              <div class="stack" style="gap:6px; align-items:stretch;">
+                <div class="row" style="justify-content:space-between; gap:8px;"><span class="blbl" style="margin:0;">cancel</span><span class="strack"><i style="width:40%"></i></span></div>
+                <div class="row" style="justify-content:space-between; gap:8px;"><span class="blbl" style="margin:0;">billing</span><span class="strack"><i style="width:28%"></i></span></div>
+                <div class="row" style="justify-content:space-between; gap:8px;"><span class="blbl" style="margin:0; color:var(--c4);">refund</span><span class="strack"><i style="width:97%; background:var(--c4);"></i></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>The reranker takes each <b>(query, chunk) pair</b> and reads them <em>together</em>. Because it sees both at once, it catches that only the refund chunk actually answers "refund if I cancel early" — and scores it far higher.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="scol" style="max-width:300px;">
+            <div class="blbl">re-sorted · top 3 to the LLM</div>
+            <div class="rlist">
+              <div class="ritem hit"><span class="rank">1</span><span class="cbar c4"></span><span class="rlabel">Refund policy · early cancellation</span><span class="strack"><i style="width:97%; background:var(--c4);"></i></span></div>
+              <div class="ritem"><span class="rank">2</span><span class="cbar cn"></span><span class="rlabel">How to cancel a plan</span><span class="strack"><i style="width:40%"></i></span></div>
+              <div class="ritem"><span class="rank">3</span><span class="cbar cn"></span><span class="rlabel">Billing cycle &amp; invoices</span><span class="strack"><i style="width:28%"></i></span></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>Re-sort by the new scores. The right chunk vaults from rank 7 to rank 1 — so when you keep only the top 3, it makes the cut. This is often the biggest single accuracy jump you can add.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>Pound for pound the <strong>highest-ROI upgrade after hybrid search</strong> — drop-in, no index change, big precision gain. The costs: ~100–500ms of extra latency and per-call cost, and it can't rescue what the first stage never retrieved (so keep first-stage recall healthy). Managed options like <a href="https://cohere.com/rerank" target="_blank" rel="noopener">Cohere Rerank</a> or self-hosted <a href="https://github.com/FlagOpen/FlagEmbedding" target="_blank" rel="noopener">bge-reranker</a> make it a few lines of code.</p>
+  <h3>LLM refinement</h3>
+  <p>Same goal, different route: instead of a purpose-built reranker, hand the shortlist to an <strong>LLM</strong> and let it refine the results directly — usually one of three moves: </p>
+  <ul class="moves">
+    <li><strong>Rerank</strong> — reorder the whole shortlist by relevance (the listwise approach behind <a href="https://github.com/castorini/rank_llm" target="_blank" rel="noopener">RankGPT / RankLLM</a>).</li>
+    <li><strong>Filter</strong> — drop the candidates that don't actually help.</li>
+    <li><strong>Compress</strong> (often called contextual compression) — trim each chunk down to just its query-relevant sentences, so the context handed to the model stays dense and noise-free.</li>
+  </ul>
+  <p>Because the LLM genuinely understands the query, quality can edge out a cross-encoder — but each move is an extra LLM call, so it's slower and pricier. For plain ranking, cross-encoder rerankers stay the default; this approach earns its place when you can spare the latency.</p>
+
+  <!-- ---------- CAMP 4 ---------- -->
+  <div class="camp">
+    <div class="eyebrow" style="color:var(--c3)">Camp 4</div>
+    <div class="ctitle">Use structured data and filters</div>
+  </div>
+  <p>Some questions aren't a fuzzy text lookup at all. When the answer is a <em>number to compute</em>, or the user wants only a <em>specific slice</em> of the data, similarity search is the wrong tool. This is where <strong>Text2SQL</strong> — letting an LLM turn the question into a database query — earns its keep, and it shows up in two very different modes.</p>
+
+  <h3>Mode 1 · Calculations — route to SQL instead of searching</h3>
+  <p>"What was our total revenue in Q2?" needs arithmetic over records. Vector search can fetch a few rows that mention revenue, but it can't <em>sum</em> them. The fix is an <strong>intent router</strong> up front: a lightweight classifier reads the query, spots that it needs a calculation, and switches the whole system <em>off</em> the vector-search path and onto pure Text2SQL.</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">MODE 1 · ROUTE TO TEXT2SQL</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:175px;">
+              <div class="blbl">query</div>
+              <div class="pill hl" style="margin:0;">"Total cloud revenue in Q2?"</div>
+            </div>
+            <div class="mid">
+              <div class="engine" style="border-color:var(--c3); color:var(--c3);">intent router</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:245px;">
+              <div class="stack" style="gap:8px; align-items:stretch;">
+                <div class="pill" style="margin:0; opacity:.42;">vector search · can't compute a sum ✗</div>
+                <div class="pill hl" style="margin:0;">Text2SQL · needs a calculation ✓</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>A classifier reads the query and sees it needs a <b>calculation</b>. Rather than run vector search — which can't add numbers — it <b>routes the query onto the Text2SQL path</b> instead. The whole system switches.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:190px;">
+              <div class="blbl">user question</div>
+              <div class="pill hl" style="margin:0 0 10px;">"Total cloud revenue in Q2?"</div>
+              <div class="blbl">DB schema</div>
+              <div class="sdoc">
+                <div class="dt">sales</div>
+                <div class="db" style="font-family:var(--mono); font-size:10.5px; line-height:1.7;">region&nbsp; TEXT<br>quarter&nbsp; TEXT<br>product&nbsp; TEXT<br>revenue&nbsp; NUMERIC</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt"><b>System:</b> You are a SQL expert. Given the schema and the user's question, return one valid SQL query — and nothing else.</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:215px;">
+              <div class="blbl">generated query</div>
+              <div class="jsonout" style="margin:0;">SELECT SUM(revenue)
+FROM sales
+WHERE quarter = <span class="jw">'Q2'</span>
+  AND product = <span class="jw">'cloud'</span>;</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>Feed the LLM both the <b>user question</b> and the <b>table schema</b> (with a short system prompt), and it writes the matching SQL. The database, not the vector index, does the retrieval.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:200px;">
+              <div class="jsonout" style="margin:0;">SELECT SUM(revenue) …</div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">run on DB</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:180px;">
+              <div class="blbl">exact answer</div>
+              <div class="pill hl" style="margin:0; font-family:var(--mono);">$9.3M</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>Run it for an <b>exact, verifiable</b> number — computed, not guessed, then phrased into an answer. This is exactly what vector search couldn't produce.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>Exact and auditable, and shipped as a product by Snowflake, Databricks and others — but accuracy drops on messy real-world schemas, so production systems add schema hints and <strong>validate or repair the SQL</strong> before running it. Benchmarks like <a href="https://arxiv.org/abs/2305.03111" target="_blank" rel="noopener">BIRD</a> track the frontier.</p>
+
+  <h3>Mode 2 · Filters — narrow the slice, then search</h3>
+  <p>The second mode doesn't replace vector search — it <em>constrains</em> it. "What did <strong>EU</strong> customers say about outages?" still needs semantic search over text, but only within a slice of the data. So a structured filter (<code>region = 'EU'</code>) runs <strong>alongside</strong> the vector search: the filter narrows the candidates, and similarity ranks by meaning within that slice.</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">MODE 2 · FILTER + VECTOR SEARCH</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:180px;">
+              <div class="blbl">query</div>
+              <div class="pill hl" style="margin:0;">"What did EU customers say about outages?"</div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="arrow2">→</div>
+              <div class="midlbl">split</div>
+            </div>
+            <div class="scol" style="max-width:215px;">
+              <div class="blbl">semantic part → vector search</div>
+              <div class="pill" style="margin:0 0 9px; border-color:var(--c2); color:var(--c2);">"outages / complaints"</div>
+              <div class="blbl">structured filter</div>
+              <div class="jsonout" style="margin:0;">WHERE region = <span class="jw">'EU'</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>The LLM splits the question into two parts: the <b>meaning</b> to search for ("outages"), and the <b>hard filter</b> the query implies (<code>region = EU</code>).</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:215px;">
+              <div class="blbl">all candidates</div>
+              <div class="rlist narrow">
+                <div class="ritem dim"><span class="rank">·</span><span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;border:1px solid var(--border);color:var(--faint);flex:0 0 auto;">US</span><span class="rlabel">"billing delay"</span></div>
+                <div class="ritem"><span class="rank">·</span><span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;border:1px solid var(--c3);color:var(--c3);flex:0 0 auto;">EU</span><span class="rlabel">"outage on Tue"</span></div>
+                <div class="ritem dim"><span class="rank">·</span><span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;border:1px solid var(--border);color:var(--faint);flex:0 0 auto;">APAC</span><span class="rlabel">"login issue"</span></div>
+                <div class="ritem"><span class="rank">·</span><span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;border:1px solid var(--c3);color:var(--c3);flex:0 0 auto;">EU</span><span class="rlabel">"dashboard down"</span></div>
+                <div class="ritem"><span class="rank">·</span><span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;border:1px solid var(--c3);color:var(--c3);flex:0 0 auto;">EU</span><span class="rlabel">"SLA breach"</span></div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">keep region=EU</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:175px;">
+              <div class="blbl">EU slice only</div>
+              <div class="rlist narrow">
+                <div class="ritem"><span class="rank">·</span><span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;border:1px solid var(--c3);color:var(--c3);flex:0 0 auto;">EU</span><span class="rlabel">"outage on Tue"</span></div>
+                <div class="ritem"><span class="rank">·</span><span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;border:1px solid var(--c3);color:var(--c3);flex:0 0 auto;">EU</span><span class="rlabel">"dashboard down"</span></div>
+                <div class="ritem"><span class="rank">·</span><span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;border:1px solid var(--c3);color:var(--c3);flex:0 0 auto;">EU</span><span class="rlabel">"SLA breach"</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>The filter runs first and <b>drops every non-EU chunk</b> — US and APAC are gone before ranking even starts. Only the EU slice survives.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:175px;">
+              <div class="blbl">EU slice</div>
+              <div class="rlist narrow">
+                <div class="ritem"><span class="rank">·</span><span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;border:1px solid var(--c3);color:var(--c3);flex:0 0 auto;">EU</span><span class="rlabel">"outage on Tue"</span></div>
+                <div class="ritem"><span class="rank">·</span><span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;border:1px solid var(--c3);color:var(--c3);flex:0 0 auto;">EU</span><span class="rlabel">"dashboard down"</span></div>
+                <div class="ritem"><span class="rank">·</span><span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;border:1px solid var(--c3);color:var(--c3);flex:0 0 auto;">EU</span><span class="rlabel">"SLA breach"</span></div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">vector search<br>rank by "outages"</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:200px;">
+              <div class="blbl">final results</div>
+              <div class="rlist narrow">
+                <div class="ritem hit"><span class="rank">1</span><span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;border:1px solid var(--c3);color:var(--c3);flex:0 0 auto;">EU</span><span class="rlabel">"outage on Tue"</span></div>
+                <div class="ritem"><span class="rank">2</span><span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;border:1px solid var(--c3);color:var(--c3);flex:0 0 auto;">EU</span><span class="rlabel">"SLA breach"</span></div>
+                <div class="ritem"><span class="rank">3</span><span style="font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:4px;border:1px solid var(--c3);color:var(--c3);flex:0 0 auto;">EU</span><span class="rlabel">"dashboard down"</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>Now vector search ranks <b>within the EU slice</b> by relevance to "outages". Filter for the constraint, similarity for the meaning — the two work together, not one instead of the other.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>This is exactly what <strong>metadata filtering (self-query)</strong> does: an LLM peels the constraint out of the question ("invoices <em>after 2025</em> over <em>$500</em>" → <code>date &gt; 2025-01-01 AND amount &gt; 500</code>) — or it comes straight from your app (the user's tenant, region, access rights) with no LLM at all. It's commoditized in every vector DB. It's the right default when the filter is <em>simple</em> — equality, ranges, a few tags. Dedicated vector DBs are built to keep filtering fast even at high scale and QPS.</p>
+  <p>For <strong>complex filters</strong> — joins, aggregations, or complex business logic filters, which is where <strong>Text2SQL</strong> comes in. Text2SQL asks the LLM to write a <em>whole query</em> instead of filling a few filter slots. </p>
+  <p>And the vector-DB-vs-relational line has blurred: <strong>Postgres with <code>pgvector</code></strong> now does vector search too, combining a rich SQL <code>WHERE</code> with vector ranking in one query. </p>
+  <p><strong> Rough rule of thumb:</strong> simple filter or high scale → metadata filtering on a vector DB; complex filter, or data already in SQL → Text2SQL over a store like pgvector.</p>
+  <p class="muted">Notice mode 1 already leaned on a <strong>router</strong> to pick the path. Deciding, per query, which tool to reach for — search, SQL, or nothing at all — is exactly what the last camp does at full strength.</p>
+
+  <!-- ---------- CAMP 5 ---------- -->
+  <div class="camp">
+    <div class="eyebrow" style="color:var(--c1)">Camp 5 · the loop</div>
+    <div class="ctitle">Agentic RAG</div>
+  </div>
+  <p>Everything so far runs once, in a fixed order. But hard questions need more than one shot — decompose, search, notice a gap, search again. The modern move is to hand retrieval to an <strong>agent</strong>: give the LLM search, SQL, and web as <em>tools</em>, and let it loop — reason, act, observe, repeat — until it has enough to answer.</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">AGENTIC RAG · REASON → ACT → OBSERVE</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:205px;">
+              <div class="blbl">query</div>
+              <div class="pill hl" style="margin:0;">"Did we hit our SLA last quarter, and how did it affect churn?"</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:140px;">
+              <div class="agentbox">
+                <div class="agent-chip"><svg width="13" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c1)"/></svg>Agent</div>
+                <div class="toolset">
+                  <div class="tool">search()</div>
+                  <div class="tool">text2sql()</div>
+                  <div class="tool">web()</div>
+                </div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:160px;">
+              <div class="blbl">plans</div>
+              <div class="pill" style="margin:0; border-color:var(--c1); font-size:12px;">2 unknowns: find <b>SLA</b>, then <b>churn</b></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>The query goes to an <b>agent</b> holding a set of <b>tools</b> — <code>search()</code>, <code>text2sql()</code>, <code>web()</code>. It doesn't retrieve blindly: first it <b>plans</b>, splitting the question into two facts to chase down.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:150px;">
+              <div class="blbl">subtask 1</div>
+              <div class="pill" style="margin:0; font-size:12px;">"Q2 SLA uptime vs target"</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:140px;">
+              <div class="agentbox">
+                <div class="agent-chip"><svg width="13" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c1)"/></svg>Agent</div>
+                <div class="toolset">
+                  <div class="tool active">search()</div>
+                  <div class="tool dim">text2sql()</div>
+                  <div class="tool dim">web()</div>
+                </div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:195px;">
+              <div class="blbl">observes</div>
+              <div class="pill" style="margin:0; border-color:var(--c1);">"Q2 uptime 99.99% vs 99.9% target — SLA met ✓"</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>For the first fact, the agent <b>activates <code>search()</code></b> — the other tools stay idle — runs it, and reads the result. SLA met. One down.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:150px;">
+              <div class="blbl">subtask 2</div>
+              <div class="pill" style="margin:0; font-size:12px;">"Q2 churn rate"</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:140px;">
+              <div class="agentbox">
+                <div class="agent-chip"><svg width="13" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c1)"/></svg>Agent</div>
+                <div class="toolset">
+                  <div class="tool dim">search()</div>
+                  <div class="tool active">text2sql()</div>
+                  <div class="tool dim">web()</div>
+                </div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:190px;">
+              <div class="blbl">observes</div>
+              <div class="pill" style="margin:0; border-color:var(--c1);">"Q2 churn 1.2%, down from 1.8% in Q1"</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>For the second fact it <b>switches to <code>text2sql()</code></b> — churn lives in a database, not the docs. Same loop, different tool.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:185px;">
+              <div class="blbl">gathered so far</div>
+              <div class="stack" style="gap:6px; align-items:stretch;">
+                <div class="pill" style="margin:0; font-size:11.5px; border-color:var(--c1);">SLA met · 99.99% vs 99.9%</div>
+                <div class="pill" style="margin:0; font-size:11.5px; border-color:var(--c1);">churn 1.2%, down from 1.8%</div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:140px;">
+              <div class="agentbox">
+                <div class="agent-chip"><svg width="13" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c1)"/></svg>Agent</div>
+                <div class="toolset">
+                  <div class="tool dim">search()</div>
+                  <div class="tool dim">text2sql()</div>
+                  <div class="tool dim">web()</div>
+                </div>
+                <div class="blbl" style="margin:0; text-align:center; color:var(--c1);">enough ✓</div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:210px;">
+              <div class="blbl">grounded answer</div>
+              <div class="pill hl" style="margin:0;">"Yes — Nimbus beat its 99.9% SLA in Q2, and churn fell to 1.2%, in line with the stronger reliability."</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">4</span>Now the agent <b>judges it has enough</b> — no tool fires — so it stops looping and answers, grounded in what it gathered. Had a search come back empty, it would just loop again or fall back to <code>web()</code>.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>This is the dominant frontier pattern, and it quietly <strong>absorbs half of this blog</strong>: query decomposition, routing, re-searching on a bad result, web fallback — all just things the agent decides to do. The cost is the flip side of the flexibility: unbounded latency and token spend, harder to debug and evaluate, and a real risk of loops running away — so guard it with step caps. It's now native to essentially every agent framework.</p>
+  <div class="note">A grounding caveat: agentic RAG doesn't <em>replace</em> the earlier camps — it wraps them. The <code>search()</code> tool the agent calls is still your Camp 1–4 stack underneath: hybrid search, a reranker, metadata filter etc. The agent decides <em>when and what</em> to search; those techniques decide <em>how well</em> each search lands. And cheapest wins still come from getting that stack right — reach for the agent only when questions are genuinely multi-step.</div>
+
+  <!-- ============ 5 ============ -->
+  <h2><span class="kicker">05 · Used to work, now absorbed</span>The self-correcting frameworks</h2>
+  <p>Around 2023–2024 a wave of research papers tackled "adaptive" retrieval — teaching the system to decide <em>when</em> and <em>whether</em> to retrieve, and to critique its own results. Great ideas, and worth knowing by name. But here's the reality: their specific machinery (custom-trained tokens, bespoke classifier models) rarely ships. Instead, the agent loop from Camp 5 recreates each behavior with a plain prompt and a tool call. They live on as <em>ideas</em>, not as code you deploy.</p>
+  <div class="cards">
+    <div class="card">
+      <h4>Self-RAG</h4>
+      <div class="credit">// Asai et al. 2023</div>
+      <div class="svgwrap">
+        <svg width="150" height="80" viewBox="0 0 150 80">
+          <rect x="20" y="14" width="70" height="52" rx="6" fill="none" stroke="var(--faint)" stroke-width="1.5"/>
+          <line x1="30" y1="28" x2="80" y2="28" stroke="var(--faint)" stroke-width="2"/>
+          <line x1="30" y1="40" x2="80" y2="40" stroke="var(--faint)" stroke-width="2"/>
+          <line x1="30" y1="52" x2="65" y2="52" stroke="var(--faint)" stroke-width="2"/>
+          <circle cx="112" cy="30" r="11" fill="var(--c1)" opacity=".2"/><path d="M107 30 l4 4 l7 -8" fill="none" stroke="var(--c1)" stroke-width="2"/>
+          <circle cx="112" cy="56" r="11" fill="var(--c4)" opacity=".2"/><text x="112" y="60" font-size="13" fill="var(--c4)" font-family="monospace" text-anchor="middle">?</text>
+        </svg>
+      </div>
+      <p>Trains the model to emit "reflection tokens" that critique its own output segment by segment — is this relevant? is it supported?</p>
+      <p class="verdict">// now: an LLM-judge grades in-loop, no special training</p>
+    </div>
+    <div class="card">
+      <h4>Adaptive-RAG</h4>
+      <div class="credit">// Jeong et al. 2024</div>
+      <div class="svgwrap">
+        <svg width="150" height="80" viewBox="0 0 150 80">
+          <circle cx="28" cy="40" r="5" fill="var(--c5)"/>
+          <line x1="33" y1="40" x2="60" y2="40" stroke="var(--faint)" stroke-width="1.5"/>
+          <line x1="60" y1="40" x2="95" y2="20" stroke="var(--faint)" stroke-width="1.5"/>
+          <line x1="60" y1="40" x2="95" y2="40" stroke="var(--faint)" stroke-width="1.5"/>
+          <line x1="60" y1="40" x2="95" y2="60" stroke="var(--faint)" stroke-width="1.5"/>
+          <text x="100" y="23" font-size="8" fill="var(--faint)" font-family="monospace">no retrieval</text>
+          <text x="100" y="43" font-size="8" fill="var(--faint)" font-family="monospace">one search</text>
+          <text x="100" y="63" font-size="8" fill="var(--faint)" font-family="monospace">multi-step</text>
+        </svg>
+      </div>
+      <p>Classifies each query's difficulty and routes it to the cheapest strategy that'll work — skip, single search, or full multi-hop.</p>
+      <p class="verdict">// now: routing, done by a prompted classifier</p>
+    </div>
+  </div>
+  <p>The pattern is the same in both: each is <em>something an agent now decides on the fly</em>. That's the honest verdict — study them for the ideas, but reach for a general agent loop to actually build it.</p>
+
+  <!-- ============ 6 ============ -->
+  <h2><span class="kicker">06 · Wrapping up</span>So what should I actually reach for?</h2>
+  <p>Retrieval isn't one algorithm — it's a toolbox. So instead of going camp by camp, here's every technique we covered <strong>ranked by how widely it's used today</strong> (★ = niche, ★★★★★ = nearly everyone runs it), each with a one-line take and the camp it comes from.</p>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th>Technique</th><th>Adoption</th><th>Camp</th><th>The gist — gain · cost · when</th></tr></thead>
+      <tbody>
+        <tr><td>Hybrid search + RRF</td><td><span class="stars"><span class="f">★★★★★</span></span></td><td><span class="problem-tag p-s">2 · search</span></td><td>The default baseline; fixes vector search's exact-match blind spot at the cost of a second index — run it always.</td></tr>
+        <tr><td>Reranking</td><td><span class="stars"><span class="f">★★★★★</span></span></td><td><span class="problem-tag p-r">3 · refine</span></td><td>The biggest single precision jump, and drop-in; costs ~100–500ms and can't rescue bad recall. Use whenever the right chunk lands just outside the top few.</td></tr>
+        <tr><td>Stronger embeddings</td><td><span class="stars"><span class="f">★★★★</span><span class="h">☆</span></span></td><td><span class="problem-tag p-s">2 · search</span></td><td>A better model lifts every query at once; the cost is re-embedding the whole corpus. Start here — fine-tune only as a last resort.</td></tr>
+        <tr><td>Query rewriting</td><td><span class="stars"><span class="f">★★★★</span><span class="e">☆</span></span></td><td><span class="problem-tag p-q">1 · query</span></td><td>Cheap cleanup of messy, conversational queries; wasted on already-clean ones. Near-mandatory for chat.</td></tr>
+        <tr><td>Metadata filtering</td><td><span class="stars"><span class="f">★★★★</span><span class="e">☆</span></span></td><td><span class="problem-tag p-src">4 · structured</span></td><td>Enforces hard constraints (dates, tiers, region) that similarity ignores; needs clean metadata. The default for simple filters.</td></tr>
+        <tr><td>Text2SQL</td><td><span class="stars"><span class="f">★★★★</span><span class="e">☆</span></span></td><td><span class="problem-tag p-src">4 · structured</span></td><td>Exact, aggregatable answers a vector index can't compute; brittle on messy schemas. When the answer is numeric or the filter is complex.</td></tr>
+        <tr><td>Agentic RAG</td><td><span class="stars"><span class="f">★★★★</span><span class="e">☆</span></span></td><td><span class="problem-tag p-loop">5 · loop</span></td><td>Handles genuinely multi-step questions and absorbs the other tricks; unbounded cost/latency and harder to debug. Only when one shot won't do.</td></tr>
+        <tr><td>LLM refinement</td><td><span class="stars"><span class="f">★★★</span><span class="e">☆☆</span></span></td><td><span class="problem-tag p-r">3 · refine</span></td><td>An LLM reranks, filters, or compresses the shortlist; flexible but slower and pricier than a cross-encoder. Handy when an LLM's already in the loop.</td></tr>
+        <tr><td>RAG-Fusion</td><td><span class="stars"><span class="f">★★★</span><span class="e">☆☆</span></span></td><td><span class="problem-tag p-q">1 · query</span></td><td>Multi-query + RRF for phrasing robustness; N× the retrieval calls. Worth it when wording sensitivity is hurting recall.</td></tr>
+        <tr><td>HyDE</td><td><span class="stars"><span class="f">★★</span><span class="e">☆☆☆</span></span></td><td><span class="problem-tag p-q">1 · query</span></td><td>Embeds a hypothetical answer to close the question–answer gap; an extra LLM call, and a wrong guess can mislead. Good on dense knowledge corpora.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>If I had to compress it to one path: get <strong>hybrid search + a reranker</strong> working first — that's most of the win, cheaply. Then, and only then, add a query trick, structured data, or an agent loop <em>when you can point to the exact query it's failing on</em>. These aren't rivals; the strongest systems stack several, each earning its place.</p>
+  
+  <p class="muted" style="font-size:14px; margin-top:36px;">Thanks for reading, and hope you got something out of it.</p>
+
+</div>
+
+<script>
+/* ---- keep the embedded blog in sync with the site's light/dark toggle ---- */
+(function(){
+  var root = document.documentElement;
+  try{
+    var saved = localStorage.getItem('kh-theme');
+    root.setAttribute('data-theme', saved || 'light');
+  }catch(e){}
+  window.addEventListener('storage', function(e){
+    if(e.key === 'kh-theme') root.setAttribute('data-theme', e.newValue || 'light');
+  });
+})();
+
+/* ---- tell the parent page how tall this embed is, so the iframe never clips ---- */
+function reportHeight(){
+  var h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+  if(h <= 0) return;
+  try{ if(window.frameElement){ window.frameElement.style.height = h + 'px'; } }catch(e){}
+  try{ if(window.parent && window.parent !== window){ window.parent.postMessage({type:'kh-embed-height', height:h}, '*'); } }catch(e){}
+}
+window.addEventListener('load', reportHeight);
+window.addEventListener('resize', reportHeight);
+[100,400,900,1600].forEach(function(t){ setTimeout(reportHeight, t); });
+
+/* ---- reusable stepper ---- */
+document.querySelectorAll('[data-stepper]').forEach(function(sp){
+  var steps = Array.prototype.slice.call(sp.querySelectorAll('.step'));
+  if(!steps.length) return;
+  var prev = sp.querySelector('[data-prev]');
+  var next = sp.querySelector('[data-next]');
+  var dotsWrap = sp.querySelector('.dots');
+  var counter = sp.querySelector('.counter');
+  var i = 0;
+
+  steps.forEach(function(_, idx){
+    var d = document.createElement('button');
+    d.className = 'dot'; d.type = 'button';
+    d.setAttribute('aria-label', 'Go to step ' + (idx+1));
+    d.addEventListener('click', function(){ go(idx); });
+    dotsWrap.appendChild(d);
+  });
+  var dots = Array.prototype.slice.call(dotsWrap.children);
+
+  function go(n){
+    i = Math.max(0, Math.min(steps.length-1, n));
+    steps.forEach(function(s, idx){ s.classList.toggle('active', idx===i); });
+    dots.forEach(function(d, idx){ d.classList.toggle('on', idx===i); });
+    if(prev) prev.disabled = (i===0);
+    if(next) next.disabled = (i===steps.length-1);
+    if(counter) counter.textContent = 'Step ' + (i+1) + ' / ' + steps.length;
+    reportHeight();
+  }
+  if(prev) prev.addEventListener('click', function(){ go(i-1); });
+  if(next) next.addEventListener('click', function(){ go(i+1); });
+  sp.tabIndex = 0;
+  sp.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowLeft'){ go(i-1); e.preventDefault(); }
+    else if(e.key === 'ArrowRight'){ go(i+1); e.preventDefault(); }
+  });
+  go(0);
+});
+</script>
+</body>
+</html>

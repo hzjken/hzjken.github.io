@@ -227,3 +227,4 @@ _site/
 vendor/
 .DS_Store
 embeds/
+.claude/
