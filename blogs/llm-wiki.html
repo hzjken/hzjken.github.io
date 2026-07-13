@@ -659,34 +659,36 @@ tr td:first-child{font-weight:600; white-space:nowrap;}
     <p><strong style="color:var(--c4)">Compounding cuts both ways.</strong> The wiki's best trick is that a good answer gets filed back as a new page, so the knowledge keeps growing. But that only helps if what's saved is actually good — and someone has to make that call. On a personal wiki you make it yourself: you asked the question, so you can tell a solid answer from a shaky one. At company scale that judgment falls apart — thousands of people ask uneven questions, and answers often get filed automatically — so you'd need a real mechanism to decide what's worth keeping, which is hard and costly to build. Get it wrong, and a hallucinated answer becomes a permanent, authoritative-looking page that every later query inherits as fact.</p>
     <p><strong style="color:var(--c4)">Heterogeneity.</strong> Tickets, code, chats, docs, dashboards, across dozens of domains — far messier to compile into one clean set of pages than a folder of papers you chose to read.</p>
   </div>
-  <p>So is it useless at work? No — but the shape isn't wiki <em>instead of</em> RAG, or even wiki <em>beside</em> RAG. The version I actually believe in: <strong>the wiki becomes another source that RAG itself searches</strong>, sitting in the same index as the raw document chunks. Here's how I'd wire it:</p>
+  <p>So is it useless at work? No — but I wouldn't dissolve the wiki into one big RAG index. The version I actually believe in: a <strong>retrieval agent with two tools</strong> — one that searches the raw sources, one that queries the LLM wiki — and a prompt that tells it which to reach for. Here's how I'd wire it:</p>
   <div class="diagram">
     <div class="arch">
       <div class="pill hl" style="margin:0;">a question comes in</div>
       <div class="archdown">↓</div>
-      <div class="archbox router">RAG retrieval · ACL filter — the non-negotiable</div>
-      <div class="archlbl2" style="margin:1px 0;">one index · two kinds of source ↓</div>
+      <div class="archbox router">Retrieval agent · a prompt tells it which tool to reach for</div>
+      <div class="archlbl2" style="margin:1px 0;">two tools · both ACL-filtered ↓</div>
       <div class="archrow">
-        <div class="archcol raw">
-          <div class="at">Raw source chunks</div>
-          <div class="ad">First-hand material — the original tickets, code and docs.</div>
-          <div class="atag">first-hand · trust ●●●</div>
-        </div>
         <div class="archcol wiki">
-          <div class="at">Wiki pages</div>
-          <div class="ad">LLM-compiled concept explanations and answers to complex questions no single raw chunk covers.</div>
-          <div class="atag">second-hand · trust ●●○</div>
+          <div class="at">query_wiki()</div>
+          <div class="ad">LLM-compiled wiki pages (second-hand). Best for <b>concepts &amp; entities</b> — what something is, how it works, why.</div>
+          <div class="atag">ACL · per-page tags</div>
+        </div>
+        <div class="archcol raw">
+          <div class="at">rag_search()</div>
+          <div class="ad">Raw source chunks (first-hand). Best for <b>exact citations</b>, specific cases and hard facts.</div>
+          <div class="atag">ACL · per-chunk tags</div>
         </div>
       </div>
-      <div class="archdown">↓ &nbsp;retrieved context, weighed by trust&nbsp; ↓</div>
-      <div class="archbox">LLM composes the answer — first-hand chunks outweigh wiki pages</div>
+      <div class="archdown">↓ &nbsp;agent composes the answer — wiki to orient, sources to cite&nbsp; ↓</div>
+      <div class="archbox">Answer &nbsp;·&nbsp; loop again if a gap remains</div>
       <div class="archdown">↓</div>
-      <div class="archbox">Gate · user up / down feedback, or a curation team verifies</div>
-      <div class="archdown">↓ &nbsp;good enough?&nbsp; ↓</div>
-      <div class="archloop">promote to a wiki page &nbsp;↺&nbsp; re-indexed, so RAG retrieves it next time</div>
+      <div class="archbox">Gate · LLM-as-judge, a curation team, or user up / down feedback</div>
+      <div class="archdown">↓ &nbsp;verified good?&nbsp; ↓</div>
+      <div class="archloop">update the wiki &nbsp;↺&nbsp; re-available to query_wiki() next time</div>
     </div>
   </div>
-  <p>A few things make this work. <strong>RAG stays the single front door</strong>, and its <strong>ACL filter is non-negotiable</strong> — it decides what each user is allowed to see across raw chunks and wiki pages alike, so wiki pages carry their own access tags too. The index now holds two source types: <strong>raw chunks</strong> (first-hand) and <strong>wiki pages</strong> (LLM-compiled), the latter earning their keep on the conceptual or multi-step questions no single raw chunk answers. Because the wiki is second-hand — written by an LLM, not the record of truth — it gets a <strong>lower trust weight</strong> than the raw chunks when the model composes an answer. And the maintenance loop still runs, now gated: an answer is only promoted into the wiki once it clears <strong>user feedback or a human review team</strong> — the gate that keeps bad answers from compounding — after which it's re-indexed and RAG can retrieve it next time.</p>
+  <p>The agent holds <strong>two retrieval tools</strong>, and a <strong>prompt decides which to use</strong>: for a <em>concept or entity</em> — what something is, how it works, why — the <strong>wiki</strong> is the better first stop, since a page already synthesizes it; for an <em>exact citation, a specific case, or a hard fact</em>, <strong>raw search</strong> over the first-hand sources wins; and for a <em>complex question</em>, the agent queries the wiki to orient itself, then searches the sources for the specifics to cite. That sequencing is also how <strong>first-hand outranks second-hand</strong> — the wiki is a lead, the raw sources are the record. </p>
+  <p><strong>ACL is enforced inside both tools</strong> — raw chunks by their tags, and each wiki page carrying its own per-page access tag — so nothing a user can't see reaches the model either way.</p>
+  <p>And the maintenance loop still runs, gated: an answer is only promoted into the wiki after it clears an <strong>LLM-as-judge, a curation team, or user up/down feedback</strong> — the gate that keeps bad answers from compounding — after which it's re-available to the wiki tool next time.</p>
   <div class="note"><b>A personal take, not a settled pattern.</b> This architecture is my own guess — the developer community hasn't converged on a standard way to run an LLM-wiki layer at enterprise scale yet, so treat it as a starting point to poke holes in rather than a blueprint. I could well be wrong about the shape.</div>
 
   <!-- ============ 7 ============ -->
@@ -715,7 +717,7 @@ tr td:first-child{font-weight:600; white-space:nowrap;}
       </tbody>
     </table>
   </div>
-  <p>People have wanted a personal Wikipedia for years, and the one piece that never worked was who keeps it tidy. The LLM finally can. For your own notes, that's a genuinely new thing — a knowledge base that <strong>compounds instead of rotting</strong>. For the enterprise, it's less a revolution than another source your RAG can already search. Either way the mental shift is the same: stop re-deriving, start compiling.</p>
+  <p>People have wanted a personal Wikipedia for years, and the one piece that never worked was who keeps it tidy. The LLM finally can. For your own notes, that's a genuinely new thing — a knowledge base that <strong>compounds instead of rotting</strong>. For the enterprise, it's less a revolution than a second tool your retrieval agent can reach for. Either way the mental shift is the same: stop re-deriving, start compiling.</p>
   <p class="muted" style="font-size:14px; margin-top:36px;">These are living notes — I'll keep updating as the pattern matures. Thanks for reading.</p>
 
 </div>
