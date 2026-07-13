@@ -1,0 +1,786 @@
+<!--
+title: LLM Wiki
+date: 2026-07-12
+tags: LLM, Knowledge Base, RAG
+description: Karpathy's LLM wiki idea in plain terms — a knowledge base the model compiles and maintains for you, why it beats retrieve-and-forget RAG, how to build one step by step, and whether it survives the enterprise.
+-->
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Wiki</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- theme tokens (mirrors the site) ---------- */
+:root{
+  --bg:#fafafa; --surface:#ffffff; --panel:#f2f3f5;
+  --fg:#101318; --muted:#5a616d; --faint:#8b93a1;
+  --border:#e6e8ec; --accent:#2563eb; --accent-soft:#e6effb;
+  --c1:#16a34a; --c2:#2563eb; --c3:#0d9488; --c4:#ea580c; --c5:#7c3aed;
+  --cn:#b6bcc6; --cw:#ffffff; --cw-bd:#cfd4dc;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;
+  --display:'Space Grotesk',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+html[data-theme="dark"]{
+  --bg:#0b0d11; --surface:#12151b; --panel:#161a21;
+  --fg:#e9ebef; --muted:#949bab; --faint:#6c7686;
+  --border:#222732; --accent:#60a5fa; --accent-soft:#16223c;
+  --c1:#22c55e; --c2:#3b82f6; --c3:#2dd4bf; --c4:#f97316; --c5:#a78bfa;
+  --cn:#454b57; --cw:#e8ecf2; --cw-bd:#aeb6c2;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;}
+body{
+  background:var(--bg); color:var(--fg);
+  font-family:var(--sans); line-height:1.62; font-size:16.5px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:880px; margin:0 auto; padding:8px 20px 60px;}
+
+/* ---------- typography ---------- */
+h2{font-family:var(--display); font-weight:600; font-size:26px; line-height:1.2;
+   margin:52px 0 6px; letter-spacing:-.2px;}
+h2 .kicker{display:block; font-family:var(--mono); font-size:12.5px; font-weight:500;
+   letter-spacing:1.2px; text-transform:uppercase; color:var(--accent); margin-bottom:8px;}
+h3{font-family:var(--display); font-weight:600; font-size:19px; margin:30px 0 4px;}
+p{margin:12px 0;}
+a{color:var(--accent);}
+strong{font-weight:600;}
+.lead{font-size:19px; line-height:1.6; color:var(--fg);}
+.muted{color:var(--muted);}
+code{font-family:var(--mono); font-size:.9em; background:var(--panel);
+  border:1px solid var(--border); border-radius:5px; padding:1px 6px;}
+hr{border:none; border-top:1px solid var(--border); margin:44px 0;}
+
+/* ---------- boxes / callouts ---------- */
+.tldr{background:var(--panel); border:1px solid var(--border); border-radius:14px;
+  padding:18px 22px; margin:22px 0 8px;}
+.tldr h4{margin:0 0 6px; font-family:var(--mono); font-size:12.5px; letter-spacing:1px;
+  text-transform:uppercase; color:var(--accent);}
+.tldr p{margin:6px 0;}
+.note{border-left:3px solid var(--accent); background:var(--accent-soft);
+  border-radius:0 10px 10px 0; padding:12px 18px; margin:20px 0; font-size:15.5px;}
+.note b{color:var(--accent);}
+
+/* ---------- generic diagram shells ---------- */
+.diagram{background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  padding:24px; margin:22px 0;}
+
+/* ---------- stepper ---------- */
+.stepper{background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  margin:18px 0 8px; overflow:hidden; outline:none;}
+.stepper:focus-visible{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);}
+.stepper .head{display:flex; align-items:center; justify-content:space-between;
+  padding:12px 18px; border-bottom:1px solid var(--border); background:var(--panel);}
+.stepper .head .ttl{font-family:var(--mono); font-size:12.5px; letter-spacing:.6px; color:var(--muted);}
+.stepper .head .counter{font-family:var(--mono); font-size:12.5px; color:var(--accent); font-weight:500;}
+.stage{position:relative; min-height:340px; padding:26px 24px 6px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;}
+.step{display:none; width:100%;}
+.step.active{display:block; animation:fade .25s ease;}
+@keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
+.stage .viz{display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:14px; min-height:220px;}
+.cap{margin-top:14px; text-align:center; font-size:15px; color:var(--fg);
+  max-width:660px; margin-left:auto; margin-right:auto;}
+.cap .n{display:inline-block; background:var(--accent); color:#fff; font-family:var(--mono);
+  font-size:12px; font-weight:600; border-radius:999px; padding:1px 9px; margin-right:8px;}
+.controls{display:flex; align-items:center; justify-content:center; gap:16px;
+  padding:14px; border-top:1px solid var(--border); background:var(--panel);}
+.dots{display:flex; gap:7px;}
+.dot{width:10px; height:10px; border-radius:50%; padding:0; border:none; cursor:pointer;
+  background:var(--border); transition:.15s;}
+.dot:hover{background:var(--faint);}
+.dot.on{background:var(--accent); transform:scale(1.3);}
+
+/* ---------- split layout (input -> process -> output) ---------- */
+.split{display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; width:100%;}
+.split .colv{flex:1 1 290px; min-width:240px; max-width:350px;}
+.split .mid{display:flex; flex-direction:column; align-items:center; gap:6px; flex:0 0 auto;}
+.split .mid .arrow2{font-size:22px; font-weight:700; line-height:1; color:var(--faint);}
+.split .mid .midlbl{font-family:var(--mono); font-size:10px; letter-spacing:.5px; color:var(--faint);
+  text-align:center; line-height:1.35;}
+@media(max-width:620px){ .split .mid .arrow2{transform:rotate(90deg);} }
+.colcap{font-family:var(--mono); font-size:10.5px; letter-spacing:.8px; text-transform:uppercase;
+  color:var(--faint); margin:0 0 6px 2px;}
+.scol{flex:0 1 auto; text-align:left; min-width:0;}
+.ar{color:var(--faint); font-size:22px; font-weight:700; flex:0 0 auto; line-height:1;}
+@media(max-width:620px){ .ar{transform:rotate(90deg);} }
+.blbl{font-family:var(--mono); font-size:10px; color:var(--muted); margin-bottom:5px;}
+
+/* generic little pieces */
+.stack{display:flex; flex-direction:column; gap:10px; align-items:center;}
+.pill{background:var(--panel); border:1px solid var(--border); border-radius:10px;
+  padding:8px 14px; font-size:13.5px; max-width:520px; text-align:center;}
+.pill.hl{border-color:var(--accent); background:var(--accent-soft);}
+.pill.mono{font-family:var(--mono); font-size:12.5px;}
+.row{display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap;}
+.vec{display:flex; gap:5px; align-items:center;}
+.vec i{width:9px; height:20px; border-radius:2px; background:var(--accent); opacity:.8;}
+
+/* small doc card (a raw source) */
+.sdoc{background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:13px 15px; box-shadow:0 1px 4px rgba(0,0,0,.06); font-size:12px;}
+.sdoc .dt{font-family:var(--display); font-weight:600; font-size:13.5px; margin-bottom:7px;}
+.sdoc .dh{font-weight:600; color:var(--fg); margin:9px 0 2px;}
+.sdoc .db{color:var(--muted); line-height:1.45;}
+.hlt{background:var(--accent-soft); color:var(--fg); border-radius:3px; padding:0 3px;}
+
+/* chips */
+.wordmark{display:inline-flex; align-items:center; gap:7px; font-family:var(--display);
+  font-weight:600; font-size:14px; padding:8px 14px; border-radius:9px;
+  border:1px solid var(--border); background:var(--panel);}
+.llmchip{display:inline-flex; align-items:center; gap:6px; font-family:var(--display); font-weight:600;
+  font-size:13px; padding:7px 13px; border-radius:9px; border:1px solid var(--c2);
+  background:var(--accent-soft); color:var(--c2);}
+.prompt{font-family:var(--mono); font-size:10px; line-height:1.5; text-align:left; color:var(--muted);
+  background:var(--surface); border:1px dashed var(--border); border-radius:8px; padding:8px 10px;
+  max-width:230px; margin-top:9px;}
+.prompt b{color:var(--fg);}
+.jsonout{font-family:var(--mono); font-size:10.5px; line-height:1.5; text-align:left; color:var(--fg);
+  background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 10px;
+  white-space:pre-wrap; margin-bottom:8px;}
+.jsonout .jw{color:var(--faint);}
+
+/* markdown page panel (a wiki page is just markdown) */
+.md{font-family:var(--mono); font-size:11px; line-height:1.6; text-align:left;
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:11px 13px; overflow-x:auto; box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.md .fn{display:block; color:var(--faint); font-size:10px; letter-spacing:.3px;
+  border-bottom:1px solid var(--border); padding-bottom:6px; margin-bottom:7px;}
+.md .mh1{color:var(--accent); font-weight:600;}
+.md .mh2{color:var(--c2); font-weight:600; margin-top:6px;}
+.md .mtx{color:var(--muted);}
+.md .mli{color:var(--muted);}
+.md .mln{color:var(--c5);}
+.md.k1{border-color:var(--c1);}
+.md.k1 .fn{color:var(--c1);}
+
+/* two-column compare */
+.compare{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:22px 0;}
+.compare .col{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px 22px;}
+.compare .col.a{border-top:3px solid var(--c4);}
+.compare .col.b{border-top:3px solid var(--c1);}
+.compare h4{margin:0 0 4px; font-family:var(--display); font-size:17px;}
+.compare .tag{font-family:var(--mono); font-size:12px; color:var(--muted);}
+.compare ul{margin:12px 0 0; padding-left:18px;}
+.compare li{margin:7px 0; font-size:15px;}
+@media(max-width:640px){ .compare{grid-template-columns:1fr;} }
+
+/* files-touched list */
+.ftouch{display:flex; flex-direction:column; gap:6px; width:100%; max-width:300px;}
+.frow{display:flex; align-items:center; gap:9px; font-family:var(--mono); font-size:12px;
+  padding:6px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface);}
+.frow .op{font-size:9.5px; font-weight:600; padding:1px 6px; border-radius:5px; flex:0 0 auto;
+  width:60px; text-align:center;}
+.frow .op.new{color:var(--c1); border:1px solid var(--c1);}
+.frow .op.upd{color:var(--c4); border:1px solid var(--c4);}
+.frow .op.app{color:var(--c2); border:1px solid var(--c2);}
+.frow .fn2{color:var(--fg);}
+
+/* v2 layers */
+.layers{display:flex; flex-direction:column; gap:9px; width:100%; max-width:600px; margin:6px auto;}
+.layer{display:flex; align-items:center; gap:13px; border:1px solid var(--border); border-left-width:3px;
+  border-radius:10px; padding:11px 15px; background:var(--surface);}
+.layer .lnum{font-family:var(--mono); font-size:11px; color:var(--faint); flex:0 0 auto; width:14px;}
+.layer .ltitle{font-family:var(--display); font-weight:600; font-size:13.5px; flex:0 0 138px;}
+.layer .ldesc{font-size:12.5px; color:var(--muted); line-height:1.4;}
+.layer.l0{border-left-color:var(--cn); background:var(--panel);}
+.layer.l1{border-left-color:var(--c1);}
+.layer.l2{border-left-color:var(--c2);}
+.layer.l3{border-left-color:var(--c3);}
+.layer.l4{border-left-color:var(--c4);}
+.layer.l0 .ltitle{color:var(--fg);}
+.layer.l1 .ltitle{color:var(--c1);}
+.layer.l2 .ltitle{color:var(--c2);}
+.layer.l3 .ltitle{color:var(--c3);}
+.layer.l4 .ltitle{color:var(--c4);}
+@media(max-width:560px){ .layer{flex-wrap:wrap; gap:6px;} .layer .ltitle{flex-basis:auto;} }
+
+/* summary table */
+.tblwrap{overflow-x:auto; margin:20px 0;}
+table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:820px;}
+th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--border); vertical-align:top;}
+th{font-family:var(--mono); font-size:12px; letter-spacing:.5px; text-transform:uppercase;
+   color:var(--muted); background:var(--panel);}
+tr td:first-child{font-weight:600; white-space:nowrap;}
+.tg{display:inline-block; font-family:var(--mono); font-size:11px; padding:2px 8px;
+  border-radius:999px; border:1px solid var(--border); white-space:nowrap;}
+.tg.wiki{color:var(--c1); border-color:var(--c1);}
+.tg.rag{color:var(--c4); border-color:var(--c4);}
+.tg.hy{color:var(--c2); border-color:var(--c2);}
+
+/* ---------- proposed enterprise architecture ---------- */
+.arch{display:flex; flex-direction:column; align-items:center; gap:9px; width:100%;}
+.archdown{color:var(--faint); font-size:19px; line-height:1;}
+.archlbl2{font-family:var(--mono); font-size:10px; letter-spacing:.5px; color:var(--faint);}
+.archbox{border:1px solid var(--border); border-radius:12px; padding:11px 16px; background:var(--surface);
+  text-align:center; max-width:560px; width:100%;}
+.archbox.router{border-color:var(--accent); background:var(--accent-soft);
+  font-family:var(--display); font-weight:600; font-size:14px; color:var(--fg);}
+.archrow{display:flex; gap:14px; width:100%; max-width:600px; justify-content:center; flex-wrap:wrap;}
+.archcol{flex:1 1 250px; max-width:300px; border:1px solid var(--border); border-left-width:3px;
+  border-radius:12px; padding:13px 15px; background:var(--surface); text-align:left;}
+.archcol.wiki{border-left-color:var(--c1);}
+.archcol.rag{border-left-color:var(--c2);}
+.archcol .at{font-family:var(--display); font-weight:600; font-size:14px; margin-bottom:4px;}
+.archcol.wiki .at{color:var(--c1);}
+.archcol.rag .at{color:var(--c2);}
+.archcol .ad{font-size:12.5px; color:var(--muted); line-height:1.45;}
+.archcol .atag{margin-top:9px; font-family:var(--mono); font-size:10px; padding:2px 7px;
+  border-radius:5px; display:inline-block; border:1px solid currentColor;}
+.archcol.wiki .atag{color:var(--c1);}
+.archcol.rag .atag{color:var(--c2);}
+.archcol.raw{border-left-color:var(--c2);}
+.archcol.raw .at{color:var(--c2);}
+.archcol.raw .atag{color:var(--c2);}
+.archloop{border:1px dashed var(--c1); border-radius:12px; padding:11px 15px; background:var(--surface);
+  text-align:center; font-size:12.5px; color:var(--c1); max-width:560px; width:100%; line-height:1.5;}
+.archbase{width:100%; max-width:560px; border:1px dashed var(--border); border-radius:12px;
+  padding:11px 15px; background:var(--panel); text-align:center; font-size:12.5px; color:var(--muted);}
+@media(max-width:560px){ .archcol{flex-basis:100%;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ 1 ============ -->
+  <h2><span class="kicker">01 · The idea</span>A knowledge base the LLM maintains</h2>
+  <p>Normally, to get an LLM to answer over your own documents, it reads them fresh <em>every time</em> you ask — you paste them into a chat, or RAG fetches the relevant snippets per question. Whatever the model figures out is thrown away the moment you move on.</p>
+  <p>Andrej Karpathy floated a different setup (<a href="https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f" target="_blank" rel="noopener">original gist here</a>): let the LLM read your sources <em>once</em> and write what it learns into a lasting, cross-linked set of markdown notes — a <strong>wiki</strong> — that it keeps maintaining. From then on it answers from its own notes, not the raw docs, so your knowledge <strong>accumulates</strong> instead of being rebuilt on every question.</p>
+  <p>The whole thing is just three layers:</p>
+  <div class="tldr">
+    <p><strong>1 · Raw sources</strong> — the articles, papers and notes you feed it. The LLM <em>reads</em> these but never edits them.</p>
+    <p><strong>2 · The wiki</strong> — markdown pages the LLM <em>owns</em>: one per entity or concept, plus summaries and cross-links. You read these; the LLM writes them.</p>
+    <p><strong>3 · The schema</strong> — a single config doc (think <code>CLAUDE.md</code>) telling the LLM the house rules: what pages to make, how to name them, when to update versus create. This is what turns it from a generic chatbot into a disciplined librarian.</p>
+  </div>
+  <p>Concretely, the wiki is nothing exotic — it's a directory you could open in any text editor:</p>
+  <div class="diagram">
+    <div class="md" style="max-width:420px; margin:0 auto;">
+<div class="mh1">sleep-wiki/</div>
+<div class="mtx">├─ <span class="mln">SCHEMA.md</span>      <span style="color:var(--faint)"># the house rules</span></div>
+<div class="mtx">├─ <span class="mln">index.md</span>       <span style="color:var(--faint)"># catalog of every page</span></div>
+<div class="mtx">├─ <span class="mln">log.md</span>         <span style="color:var(--faint)"># append-only history</span></div>
+<div class="mtx">├─ pages/</div>
+<div class="mtx">│&nbsp;&nbsp;├─ caffeine.md</div>
+<div class="mtx">│&nbsp;&nbsp;├─ circadian-rhythm.md</div>
+<div class="mtx">│&nbsp;&nbsp;└─ melatonin.md</div>
+<div class="mtx">└─ sources/       <span style="color:var(--faint)"># raw articles, untouched</span></div>
+    </div>
+  </div>
+  <p>A folder of markdown doesn't look like much — so why does it matter? The easiest way to see it: <strong>Wikipedia</strong>. A huge web of cross-linked pages, kept current by an army of editors. A personal wiki is the same idea shrunk to your own knowledge — people have wanted one for years, but never had the editors to keep it alive. That's the shift: the <strong>LLM is the editor</strong>. From here I'll get into how you actually build and query one, how it stacks up against RAG, and whether it holds up beyond personal notes — at work.</p>
+
+  <!-- ============ 2 ============ -->
+  <h2><span class="kicker">02 · Why it wins</span>The real cost is bookkeeping</h2>
+  <p>Here's why that editor earns its keep. The expensive part of a knowledge base was never the reading or the thinking — it's the <strong>bookkeeping</strong>. Updating the right page when a new fact lands. Fixing the five other pages that referenced the old version. Keeping the index current. Noticing that two notes now quietly contradict each other. That drudgery is exactly why human-maintained wikis rot: nobody keeps up.</p>
+  <p>An LLM does that drudgery for almost nothing. It can touch fifteen files in a single pass and never forgets a cross-reference. That one shift — near-zero maintenance cost — is what makes a compounding knowledge base actually sustainable. Once upkeep is basically free, you get four things:</p>
+  <div class="tldr">
+    <p><strong style="color:var(--c1)">Synthesis happens once, not per query.</strong> Answers come back faster and cheaper because the hard work was already done at ingest — and the pages get better every time you add a source.</p>
+    <p><strong style="color:var(--c2)">Cross-references persist.</strong> The link between two ideas is written down once and reused, instead of being rediscovered on every question.</p>
+    <p><strong style="color:var(--c3)">Contradictions surface.</strong> A periodic pass can catch "page A says X, page B says not-X" — something no stateless RAG query ever notices.</p>
+    <p><strong style="color:var(--c4)">Your explorations compound.</strong> A good answer becomes a new page, so the next related question starts from where you left off, not from raw chunks.</p>
+  </div>
+  <p>The human's job shrinks to the two things only a human can do: curate what goes in, and ask good questions. The LLM handles everything in between. So how do you actually run one?</p>
+
+  <!-- ============ 3 ============ -->
+  <h2><span class="kicker">03 · Building one</span>Ingest, Query, Lint</h2>
+  <p>Conceptually, an LLM wiki is just three repeating operations sitting on top of two core files. No pipeline to build — you're mostly writing the schema and then letting a coding agent do the work.</p>
+  <p><strong>The two core files:</strong> <code>index.md</code> is a catalog listing every page with a one-line summary, so the LLM can navigate without reading everything. <code>log.md</code> is an append-only history (<code>## [2026-07-12] ingest | Caffeine &amp; sleep onset</code>) so both you and the model can see how the wiki evolved.</p>
+  <p>All three reuse the same muscle — the LLM does the reading and the bookkeeping — but they do different jobs. Let's walk through each with its own visual.</p>
+
+  <h3>Ingest — fold a new source in</h3>
+  <p>When a new source lands, the LLM pulls out the key facts, updates the pages they touch, adds cross-links, and appends to the log. Here's what one pass looks like when a new article hits my sleep wiki:</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">INGEST · FOLD A NEW SOURCE IN</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:260px;">
+              <div class="colcap">new raw source</div>
+              <div class="sdoc">
+                <div class="dt">Caffeine &amp; Sleep Onset</div>
+                <div class="db">Caffeine has a half-life of about 5–6 hours. It works by blocking <b>adenosine</b> receptors — adenosine is the molecule that builds up while you're awake and makes you sleepy. A dose in the afternoon can still be active at bedtime.</div>
+              </div>
+            </div>
+            <div class="mid"><div class="midlbl" style="font-size:24px; font-weight:700; color:var(--faint);">+</div></div>
+            <div class="scol" style="max-width:260px;">
+              <div class="colcap">already in the wiki · index.md</div>
+              <div class="md">
+<span class="fn">index.md</span>
+<div class="mh2">## Pages</div>
+<div class="mli">- caffeine — stimulant, effect on sleep</div>
+<div class="mli">- circadian-rhythm — the body clock</div>
+<div class="mli">- melatonin — the "night" hormone</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>A new article lands in <code>sources/</code>. The wiki already has a few concept pages — you can see them in <code>index.md</code>. Nothing about adenosine yet.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:210px;">
+              <div class="colcap">the source</div>
+              <div class="pill mono" style="margin:0;">"Caffeine &amp; Sleep Onset"</div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt">Read this source. Following <b>SCHEMA.md</b>, extract entities and claims, then update or create the pages they belong to.</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:230px;">
+              <div class="colcap">extracted</div>
+              <div class="jsonout" style="margin:0;">{
+ "entities": [<span class="jw">"caffeine"</span>, <span class="jw">"adenosine"</span>],
+ "claims": [
+  <span class="jw">"caffeine half-life ~5–6h"</span>,
+  <span class="jw">"caffeine blocks adenosine"</span>
+ ],
+ "new_page": <span class="jw">"adenosine"</span>
+}</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>The LLM reads the source <em>guided by the schema</em> — not free-form. It pulls out the entities and claims, and notices <b>adenosine</b> is a new concept that deserves its own page.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:flex-start;">
+            <div class="scol" style="max-width:240px;">
+              <div class="colcap">one pass · files touched</div>
+              <div class="ftouch">
+                <div class="frow"><span class="op upd">update</span><span class="fn2">caffeine.md</span></div>
+                <div class="frow"><span class="op new">create</span><span class="fn2">adenosine.md</span></div>
+                <div class="frow"><span class="op upd">update</span><span class="fn2">index.md</span></div>
+                <div class="frow"><span class="op app">append</span><span class="fn2">log.md</span></div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:300px;">
+              <div class="colcap">caffeine.md · after</div>
+              <div class="md k1">
+<span class="fn">pages/caffeine.md</span>
+<div class="mh1"># Caffeine</div>
+<div class="mh2">## Effect on sleep</div>
+<div class="mtx">Half-life <span class="hlt">~5–6h</span>, so an afternoon</div>
+<div class="mtx">dose can delay sleep onset.</div>
+<div class="mh2">## Mechanism</div>
+<div class="mtx">Blocks <span class="hlt">[[adenosine]]</span> receptors —</div>
+<div class="mtx">the molecule that drives sleepiness.</div>
+<div class="mtx" style="color:var(--faint)">source: Caffeine &amp; Sleep Onset</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>In a <b>single pass</b> the LLM updates <code>caffeine.md</code> (new claim + a <code>[[adenosine]]</code> cross-link), creates <code>adenosine.md</code>, refreshes the index, and logs it. That four-file bookkeeping — done for free — is the whole point.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <h3>Query — answer from the compiled pages</h3>
+  <p>A query never touches the raw sources. It reads the index, opens the page (or two) it needs, and answers from the already-synthesized text — then files a good answer back so the wiki gets richer:</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">QUERY · ANSWER FROM COMPILED PAGES</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:200px;">
+              <div class="colcap">question</div>
+              <div class="pill hl" style="margin:0;">"Should I stop drinking coffee after lunch?"</div>
+            </div>
+            <div class="mid"><div class="midlbl">scan<br>the index</div><div class="arrow2">→</div></div>
+            <div class="scol" style="max-width:240px;">
+              <div class="colcap">index.md</div>
+              <div class="md">
+<span class="fn">index.md</span>
+<div class="mli">- <span class="hlt">caffeine</span> — half-life, timing,</div>
+<div class="mtx">&nbsp;&nbsp;mechanism via adenosine</div>
+<div class="mli">- adenosine</div>
+<div class="mli">- circadian-rhythm</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>A question comes in. The LLM reads <code>index.md</code> first — the one-line catalog — and sees the <b>caffeine</b> page already covers timing and mechanism. No search over raw sources needed.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:250px;">
+              <div class="colcap">caffeine.md · already synthesized</div>
+              <div class="md k1">
+<span class="fn">pages/caffeine.md</span>
+<div class="mh1"># Caffeine</div>
+<div class="mtx">Half-life ~5–6h → afternoon</div>
+<div class="mtx">doses delay onset. Blocks</div>
+<div class="mtx">[[adenosine]]. Sensitivity</div>
+<div class="mtx">varies by person.</div>
+<div class="mtx" style="color:var(--faint)">sources: 3 · cross-links: 2</div>
+              </div>
+            </div>
+            <div class="mid"><div class="midlbl">read &amp;<br>answer</div><div class="arrow2">→</div></div>
+            <div class="scol" style="max-width:200px;">
+              <div class="colcap">grounded answer</div>
+              <div class="pill hl" style="margin:0;">"Yes — after ~2pm caffeine can still delay sleep, so cut it off around lunch."</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>Open the one page. The three facts are <b>already stitched together, with citations</b> — that work happened back at ingest. The model reads an answer instead of reconstructing one from scratch.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:210px;">
+              <div class="colcap">the answer you just derived</div>
+              <div class="pill" style="margin:0; border-color:var(--c1);">"Cut caffeine after ~2pm to fall asleep faster."</div>
+            </div>
+            <div class="mid"><div class="midlbl">file it<br>back</div><div class="arrow2">→</div></div>
+            <div class="scol" style="max-width:250px;">
+              <div class="colcap">caffeine.md · now richer</div>
+              <div class="md k1">
+<span class="fn">pages/caffeine.md</span>
+<div class="mh2">## Practical timing</div>
+<div class="mtx"><span class="hlt">Cut caffeine after ~2pm to</span></div>
+<div class="mtx"><span class="hlt">fall asleep faster.</span> (Q&amp;A, Jul 12)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>The step RAG can't do: <b>file the answer back</b>. A good Q&amp;A becomes a new section, so next time it's already there — your explorations compound instead of vanishing.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+
+  <h3>Lint — the periodic health check</h3>
+  <p>Left alone, any wiki drifts: two pages start disagreeing, a page ends up with nothing linking to it, an old fact quietly falls behind a newer source. Lint is a sweep that catches and fixes that drift — the maintenance a human would skip:</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">LINT · KEEP THE WIKI CONSISTENT</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:210px;">
+              <div class="colcap">the whole wiki</div>
+              <div class="md">
+<span class="fn">pages/</span>
+<div class="mtx">caffeine.md</div>
+<div class="mtx">adenosine.md</div>
+<div class="mtx">melatonin.md</div>
+<div class="mtx">circadian-rhythm.md</div>
+<div class="mtx">light-exposure.md</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="wordmark" style="border-color:var(--c3); color:var(--c3);">lint</div>
+              <div class="arrow2">→</div>
+              <div class="midlbl">sweep<br>every page</div>
+            </div>
+            <div class="scol" style="max-width:160px;">
+              <div class="pill mono" style="margin:0; text-align:left; line-height:1.7;">checking for:<br>· contradictions<br>· stale claims<br>· orphan pages<br>· missing links</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>Every so often — nightly, or on demand — <b>lint</b> reads the whole wiki at once and checks for the four messes that pile up as it grows.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="scol" style="max-width:440px;">
+            <div class="colcap">3 issues found</div>
+            <div class="ftouch" style="max-width:440px;">
+              <div class="frow"><span class="op" style="width:82px; color:var(--c4); border:1px solid var(--c4);">contradict</span><span class="fn2" style="font-family:var(--sans); font-weight:400; color:var(--muted);">two pages disagree: melatonin.md "peaks AM" vs circadian.md "rises at night"</span></div>
+              <div class="frow"><span class="op" style="width:82px; color:var(--c5); border:1px solid var(--c5);">orphan</span><span class="fn2" style="font-family:var(--sans); font-weight:400; color:var(--muted);">light-exposure.md — nothing links to it</span></div>
+              <div class="frow"><span class="op" style="width:82px; color:var(--c2); border:1px solid var(--c2);">stale</span><span class="fn2" style="font-family:var(--sans); font-weight:400; color:var(--muted);">caffeine.md is behind: a newer source revised a fact it still shows</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>It surfaces three, each a different kind of drift: two pages <b>contradict</b> each other (both live in the wiki — which is right?); one <b>orphan</b> page has nothing linking to it; and one page is <b>stale</b> — a newer source revised a fact, but the page still shows the old one.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:flex-start;">
+            <div class="scol" style="max-width:230px;">
+              <div class="colcap">one pass · resolved</div>
+              <div class="ftouch">
+                <div class="frow"><span class="op" style="color:var(--c1); border:1px solid var(--c1);">fixed</span><span class="fn2">reconcile melatonin → night</span></div>
+                <div class="frow"><span class="op" style="color:var(--c1); border:1px solid var(--c1);">fixed</span><span class="fn2">link [[light-exposure]]</span></div>
+                <div class="frow"><span class="op" style="color:var(--c1); border:1px solid var(--c1);">fixed</span><span class="fn2">update caffeine.md to newer fact</span></div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:290px;">
+              <div class="colcap">melatonin.md · reconciled</div>
+              <div class="md k1">
+<span class="fn">pages/melatonin.md</span>
+<div class="mh1"># Melatonin</div>
+<div class="mtx">Rises in the <span class="hlt">evening</span>, signaling</div>
+<div class="mtx">night — <s>peaks in the morning</s>.</div>
+<div class="mtx">Linked from [[circadian-rhythm]].</div>
+<div class="mtx" style="color:var(--faint)">old claim kept in history</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>Lint fixes all three in one pass — reconciling the contradiction (old version kept in history), adding the missing link, and updating the stale page to its newer source. The wiki stays consistent without you touching it.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+
+  <p>And the <code>SCHEMA.md</code> is what keeps all three consistent. It's the real product here — hand the same schema to a different model six months from now and your wiki keeps its exact shape. The pages are the output; the schema is the thing you actually design.</p>
+
+  <!-- ============ 4 ============ -->
+  <h2><span class="kicker">04 · The RAG question</span>Wiki Q&amp;A vs RAG Q&amp;A</h2>
+  <p>We just watched the wiki answer that coffee question by opening one page. RAG would answer the same question in a completely different way — and that difference is the whole point.</p>
+  <p>You've probably seen the "RAG is dead" takes. That's not quite it. What the wiki really challenges is narrower and sharper: <strong>RAG retrieves and forgets.</strong> Ask something that needs five documents stitched together, and a RAG system finds the fragments and re-stitches them — every single time, from scratch. The synthesis is never written down; it's re-derived on every query and then thrown away. NotebookLM, ChatGPT file uploads, most RAG chatbots all work this way. The wiki flips it: do the synthesis <em>once</em>, save it as a page, and read it back later. Karpathy's line for it: <em>"stop re-deriving, start compiling."</em></p>
+  <p>Same question, two paths — here they are side by side.</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">SAME QUESTION · TWO PATHS</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="stack">
+            <div class="pill hl">"Should I stop drinking coffee after lunch?"</div>
+            <div class="pill" style="border-color:var(--c4); color:var(--c4); max-width:560px;">the answer is spread across 3 sources: caffeine's half-life · how adenosine works · a note on individual sensitivity</div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>A real question rarely sits in one place. This one needs three facts, stitched together — the classic case where naive retrieval struggles and synthesis matters.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:250px;">
+              <div class="colcap">RAG · retrieve raw chunks</div>
+              <div class="stack" style="gap:6px; align-items:stretch;">
+                <div class="pill mono" style="margin:0;">chunk · from "Half-life" article</div>
+                <div class="pill mono" style="margin:0;">chunk · from "Adenosine" article</div>
+                <div class="pill mono" style="margin:0;">chunk · from "Sensitivity" blog</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="midlbl">synthesize<br>from scratch</div>
+            </div>
+            <div class="scol" style="max-width:190px;">
+              <div class="colcap">answer</div>
+              <div class="pill" style="margin:0;">"Yes — caffeine lingers ~5–6h, so after ~2pm it can…"</div>
+              <div class="pill mono" style="margin-top:8px; border-color:var(--c4); color:var(--c4);">↻ redone every query</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span><b>The RAG path.</b> Embed the query, pull the closest raw chunks from three different documents, and hand them to the LLM to stitch together <em>now</em>. Good answer — but the synthesis is thrown away, so the next person asking pays for it all over again.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:250px;">
+              <div class="colcap">Wiki · open the built page</div>
+              <div class="md k1">
+<span class="fn">pages/caffeine.md</span>
+<div class="mh1"># Caffeine</div>
+<div class="mtx">Half-life ~5–6h → afternoon</div>
+<div class="mtx">doses delay onset. Blocks</div>
+<div class="mtx">[[adenosine]]. Sensitivity</div>
+<div class="mtx">varies by person.</div>
+<div class="mtx" style="color:var(--faint)">sources: 3 · cross-links: 2</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">just read</div>
+              <div class="arrow2">→</div>
+              <div class="midlbl">no synthesis</div>
+            </div>
+            <div class="scol" style="max-width:190px;">
+              <div class="colcap">answer</div>
+              <div class="pill" style="margin:0;">"Yes — after ~2pm caffeine can still delay sleep. Cut it off around lunch."</div>
+              <div class="pill mono" style="margin-top:8px; border-color:var(--c1); color:var(--c1);">✓ already compiled</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span><b>The wiki path.</b> The index points to a single page that already stitches all three facts together — half-life, adenosine, sensitivity — with citations. The model just reads the answer off it; the synthesis happened back at ingest, so nothing is recomputed.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:230px;">
+              <div class="colcap">RAG · every query</div>
+              <div class="stack" style="gap:5px; align-items:stretch;">
+                <div class="pill mono" style="margin:0;">pull 3 raw chunks</div>
+                <div class="pill mono" style="margin:0;">synthesize now</div>
+                <div class="pill mono" style="margin:0; border-color:var(--c4); color:var(--c4);">discard the result ↻</div>
+              </div>
+            </div>
+            <div class="mid"><div class="midlbl">vs</div></div>
+            <div class="scol" style="max-width:230px;">
+              <div class="colcap">Wiki · once, at ingest</div>
+              <div class="stack" style="gap:5px; align-items:stretch;">
+                <div class="pill mono" style="margin:0;">open the built page</div>
+                <div class="pill mono" style="margin:0;">already synthesized</div>
+                <div class="pill mono" style="margin:0; border-color:var(--c1); color:var(--c1);">keep &amp; compound ✓</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">4</span>Same question, two costs, side by side. RAG re-stitches those three raw chunks <em>every single time</em> and throws the result away. The wiki did that stitching once at ingest, so the query just reads the ready page — and it gets richer each time.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>The whole difference in one line: <strong>RAG does the synthesis at query time and discards it; the wiki does it at ingest time and keeps it.</strong> That's why wiki answers get faster and richer the more you use it, while RAG always starts over from raw chunks.</p>
+  <p>But be honest about the flip side: the wiki is only as fresh as its last ingest. On a personal wiki you curate, that's a fine trade — but a plain folder of markdown has limits, and the real question is how far it can scale.</p>
+
+  <!-- ============ 5 ============ -->
+  <h2><span class="kicker">05 · Scaling up</span>What you add at scale</h2>
+  <p>The plain version — markdown plus a coding agent — is genuinely enough for a personal wiki, up to roughly <strong>100k tokens / ~100 articles</strong>, the point where the LLM can still hold the index in context and navigate by it. Past that, <a href="https://github.com/rohitg00" target="_blank" rel="noopener">Rohit Ghumare</a> published an <a href="https://gist.github.com/rohitg00/2067ab416f7bbe447c1977edaaa681e2" target="_blank" rel="noopener">"LLM Wiki v2"</a> mapping out what you bolt on — and crucially, it's <em>modular</em>. You add a layer only when you hit the wall it solves.</p>
+  <div class="diagram">
+    <div class="layers">
+      <div class="layer l0"><span class="lnum">0</span><span class="ltitle">Core</span><span class="ldesc">Raw sources + markdown pages + <code>index.md</code> + schema. Where everyone starts, and where most stay.</span></div>
+      <div class="layer l1"><span class="lnum">1</span><span class="ltitle">Lifecycle</span><span class="ldesc">Facts get a confidence score; new claims <em>supersede</em> old ones (with history kept); stale facts decay. Knowledge isn't all equally permanent.</span></div>
+      <div class="layer l2"><span class="lnum">2</span><span class="ltitle">Knowledge graph</span><span class="ldesc">Typed entities and labeled relationships ("uses", "contradicts", "supersedes") instead of flat pages, so the model can walk connections.</span></div>
+      <div class="layer l3"><span class="lnum">3</span><span class="ltitle">Hybrid search</span><span class="ldesc">Once the index won't fit in context, add BM25 + vector + graph search to <em>find</em> the right page. (Yes — this is RAG coming back, now as the retrieval layer <em>under</em> the wiki.)</span></div>
+      <div class="layer l4"><span class="lnum">4</span><span class="ltitle">Automation</span><span class="ldesc">Hooks: auto-ingest on a new source, inject context at session start, compress a finished session into notes, scheduled lint.</span></div>
+    </div>
+  </div>
+  <p>Two things to notice. First, layer 3 is the tell: <strong>at scale, the wiki doesn't replace retrieval — it sits on top of it.</strong> Hold that thought for the enterprise question. Second, the schema keeps absorbing more of the design — entity types, supersession rules, what's private versus shared. The bigger this gets, the more the schema <em>is</em> the system.</p>
+
+  <!-- ============ 6 ============ -->
+  <h2><span class="kicker">06 · The hard question</span>The enterprise catch</h2>
+  <p>For a personal knowledge base, the answer is an easy yes — this is the best version of the personal wiki anyone's built. The enterprise is where I'd pump the brakes, because the wiki's whole trick assumes a corpus that's <em>bounded, and curated by someone you trust</em>, small enough that the model can hold the map in its head. Company knowledge breaks every one of those assumptions:</p>
+  <div class="tldr">
+    <p><strong style="color:var(--c4)">Scale.</strong> Millions of documents, not a hundred. The index alone won't fit in context, so you need a retrieval layer no matter what — which is exactly the ground RAG owns.</p>
+    <p><strong style="color:var(--c4)">Permissions — the real killer.</strong> Who can see what actually matters at a company. Access control has to live <em>inside</em> retrieval, filtering by ACLs before the model ever sees a chunk — not bolted on afterward. A single shared wiki the model reads freely across is a data-leak waiting to happen.</p>
+    <p><strong style="color:var(--c4)">Compounding cuts both ways.</strong> The wiki's best trick is that a good answer gets filed back as a new page, so the knowledge keeps growing. But that only helps if what's saved is actually good — and someone has to make that call. On a personal wiki you make it yourself: you asked the question, so you can tell a solid answer from a shaky one. At company scale that judgment falls apart — thousands of people ask uneven questions, and answers often get filed automatically — so you'd need a real mechanism to decide what's worth keeping, which is hard and costly to build. Get it wrong, and a hallucinated answer becomes a permanent, authoritative-looking page that every later query inherits as fact.</p>
+    <p><strong style="color:var(--c4)">Heterogeneity.</strong> Tickets, code, chats, docs, dashboards, across dozens of domains — far messier to compile into one clean set of pages than a folder of papers you chose to read.</p>
+  </div>
+  <p>So is it useless at work? No — but the shape isn't wiki <em>instead of</em> RAG, or even wiki <em>beside</em> RAG. The version I actually believe in: <strong>the wiki becomes another source that RAG itself searches</strong>, sitting in the same index as the raw document chunks. Here's how I'd wire it:</p>
+  <div class="diagram">
+    <div class="arch">
+      <div class="pill hl" style="margin:0;">a question comes in</div>
+      <div class="archdown">↓</div>
+      <div class="archbox router">RAG retrieval · ACL filter — the non-negotiable</div>
+      <div class="archlbl2" style="margin:1px 0;">one index · two kinds of source ↓</div>
+      <div class="archrow">
+        <div class="archcol raw">
+          <div class="at">Raw source chunks</div>
+          <div class="ad">First-hand material — the original tickets, code and docs.</div>
+          <div class="atag">first-hand · trust ●●●</div>
+        </div>
+        <div class="archcol wiki">
+          <div class="at">Wiki pages</div>
+          <div class="ad">LLM-compiled concept explanations and answers to complex questions no single raw chunk covers.</div>
+          <div class="atag">second-hand · trust ●●○</div>
+        </div>
+      </div>
+      <div class="archdown">↓ &nbsp;retrieved context, weighed by trust&nbsp; ↓</div>
+      <div class="archbox">LLM composes the answer — first-hand chunks outweigh wiki pages</div>
+      <div class="archdown">↓</div>
+      <div class="archbox">Gate · user up / down feedback, or a curation team verifies</div>
+      <div class="archdown">↓ &nbsp;good enough?&nbsp; ↓</div>
+      <div class="archloop">promote to a wiki page &nbsp;↺&nbsp; re-indexed, so RAG retrieves it next time</div>
+    </div>
+  </div>
+  <p>A few things make this work. <strong>RAG stays the single front door</strong>, and its <strong>ACL filter is non-negotiable</strong> — it decides what each user is allowed to see across raw chunks and wiki pages alike, so wiki pages carry their own access tags too. The index now holds two source types: <strong>raw chunks</strong> (first-hand) and <strong>wiki pages</strong> (LLM-compiled), the latter earning their keep on the conceptual or multi-step questions no single raw chunk answers. Because the wiki is second-hand — written by an LLM, not the record of truth — it gets a <strong>lower trust weight</strong> than the raw chunks when the model composes an answer. And the maintenance loop still runs, now gated: an answer is only promoted into the wiki once it clears <strong>user feedback or a human review team</strong> — the gate that keeps bad answers from compounding — after which it's re-indexed and RAG can retrieve it next time.</p>
+  <div class="note"><b>A personal take, not a settled pattern.</b> This architecture is my own guess — the developer community hasn't converged on a standard way to run an LLM-wiki layer at enterprise scale yet, so treat it as a starting point to poke holes in rather than a blueprint. I could well be wrong about the shape.</div>
+
+  <!-- ============ 7 ============ -->
+  <h2><span class="kicker">07 · Wrapping up</span>Wiki, RAG, or both</h2>
+  <p>It was never either/or. They make opposite bets about when you pay for synthesis, and the right call depends entirely on your corpus. Here's the whole decision on one screen:</p>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th>Approach</th><th>Best when</th><th>Retrieval</th><th>Freshness</th><th>Permissions</th><th>Reach for it</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="tg wiki">LLM Wiki</span></td>
+          <td>Small, curated, stable corpus (personal or single-team)</td>
+          <td>Read the index, open a page — no search needed</td>
+          <td>As fresh as the last ingest</td>
+          <td>Assumes one trusted reader</td>
+          <td>Personal notes, a project's knowledge, anything you re-derive often</td>
+        </tr>
+        <tr>
+          <td><span class="tg rag">RAG</span></td>
+          <td>Large, dynamic, multi-domain corpus</td>
+          <td>Search (hybrid + rerank) on every query</td>
+          <td>As fresh as the index</td>
+          <td>ACLs enforced inside retrieval</td>
+          <td>Enterprise KB, open-ended lookup over many sources</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>People have wanted a personal Wikipedia for years, and the one piece that never worked was who keeps it tidy. The LLM finally can. For your own notes, that's a genuinely new thing — a knowledge base that <strong>compounds instead of rotting</strong>. For the enterprise, it's less a revolution than another source your RAG can already search. Either way the mental shift is the same: stop re-deriving, start compiling.</p>
+  <p class="muted" style="font-size:14px; margin-top:36px;">These are living notes — I'll keep updating as the pattern matures. Thanks for reading.</p>
+
+</div>
+
+<script>
+/* ---- keep the embedded blog in sync with the site's light/dark toggle ---- */
+(function(){
+  var root = document.documentElement;
+  try{
+    var saved = localStorage.getItem('kh-theme');
+    root.setAttribute('data-theme', saved || 'light');
+  }catch(e){}
+  window.addEventListener('storage', function(e){
+    if(e.key === 'kh-theme') root.setAttribute('data-theme', e.newValue || 'light');
+  });
+})();
+
+/* ---- tell the parent page how tall this embed is, so the iframe never clips ---- */
+function reportHeight(){
+  var h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+  if(h <= 0) return;
+  try{ if(window.frameElement){ window.frameElement.style.height = h + 'px'; } }catch(e){}
+  try{ if(window.parent && window.parent !== window){ window.parent.postMessage({type:'kh-embed-height', height:h}, '*'); } }catch(e){}
+}
+window.addEventListener('load', reportHeight);
+window.addEventListener('resize', reportHeight);
+[100,400,900,1600].forEach(function(t){ setTimeout(reportHeight, t); });
+
+/* ---- reusable stepper ---- */
+document.querySelectorAll('[data-stepper]').forEach(function(sp){
+  var steps = Array.prototype.slice.call(sp.querySelectorAll('.step'));
+  if(!steps.length) return;
+  var prev = sp.querySelector('[data-prev]');
+  var next = sp.querySelector('[data-next]');
+  var dotsWrap = sp.querySelector('.dots');
+  var counter = sp.querySelector('.counter');
+  var i = 0;
+
+  steps.forEach(function(_, idx){
+    var d = document.createElement('button');
+    d.className = 'dot'; d.type = 'button';
+    d.setAttribute('aria-label', 'Go to step ' + (idx+1));
+    d.addEventListener('click', function(){ go(idx); });
+    dotsWrap.appendChild(d);
+  });
+  var dots = Array.prototype.slice.call(dotsWrap.children);
+
+  function go(n){
+    i = Math.max(0, Math.min(steps.length-1, n));
+    steps.forEach(function(s, idx){ s.classList.toggle('active', idx===i); });
+    dots.forEach(function(d, idx){ d.classList.toggle('on', idx===i); });
+    if(prev) prev.disabled = (i===0);
+    if(next) next.disabled = (i===steps.length-1);
+    if(counter) counter.textContent = 'Step ' + (i+1) + ' / ' + steps.length;
+    reportHeight();
+  }
+  if(prev) prev.addEventListener('click', function(){ go(i-1); });
+  if(next) next.addEventListener('click', function(){ go(i+1); });
+  sp.tabIndex = 0;
+  sp.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowLeft'){ go(i-1); e.preventDefault(); }
+    else if(e.key === 'ArrowRight'){ go(i+1); e.preventDefault(); }
+  });
+  go(0);
+});
+</script>
+</body>
+</html>
