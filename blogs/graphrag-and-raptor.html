@@ -1,0 +1,1029 @@
+<!--
+title: Beyond Flat Chunks: GraphRAG and RAPTOR
+date: 2026-07-18
+tags: RAG, GraphRAG, RAPTOR, Retrieval
+description: Plain vector RAG chops everything into flat chunks and loses the big picture. GraphRAG and RAPTOR add structure back — a visual, step-by-step guide to how each one works, how they differ from normal RAG, and when to reach for them.
+-->
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beyond Flat Chunks: GraphRAG and RAPTOR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- theme tokens (mirrors the site) ---------- */
+:root{
+  --bg:#fafafa; --surface:#ffffff; --panel:#f2f3f5;
+  --fg:#101318; --muted:#5a616d; --faint:#8b93a1;
+  --border:#e6e8ec; --accent:#2563eb; --accent-soft:#e6effb;
+  /* semantic cluster palette */
+  --c1:#16a34a; --c2:#2563eb; --c3:#0d9488; --c4:#ea580c; --c5:#7c3aed;
+  --cn:#b6bcc6; --cw:#ffffff; --cw-bd:#cfd4dc;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;
+  --display:'Space Grotesk',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+html[data-theme="dark"]{
+  --bg:#0b0d11; --surface:#12151b; --panel:#161a21;
+  --fg:#e9ebef; --muted:#949bab; --faint:#6c7686;
+  --border:#222732; --accent:#60a5fa; --accent-soft:#16223c;
+  --c1:#22c55e; --c2:#3b82f6; --c3:#2dd4bf; --c4:#f97316; --c5:#a78bfa;
+  --cn:#454b57; --cw:#e8ecf2; --cw-bd:#aeb6c2;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;}
+body{
+  background:var(--bg); color:var(--fg);
+  font-family:var(--sans); line-height:1.62; font-size:16.5px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:880px; margin:0 auto; padding:8px 20px 60px;}
+
+/* ---------- typography ---------- */
+h2{font-family:var(--display); font-weight:600; font-size:26px; line-height:1.2;
+   margin:52px 0 6px; letter-spacing:-.2px;}
+h2 .kicker{display:block; font-family:var(--mono); font-size:12.5px; font-weight:500;
+   letter-spacing:1.2px; text-transform:uppercase; color:var(--accent); margin-bottom:8px;}
+h3{font-family:var(--display); font-weight:600; font-size:19px; margin:30px 0 4px;}
+p{margin:12px 0;}
+a{color:var(--accent);}
+strong{font-weight:600;}
+.lead{font-size:19px; line-height:1.6; color:var(--fg);}
+.muted{color:var(--muted);}
+code{font-family:var(--mono); font-size:.9em; background:var(--panel);
+  border:1px solid var(--border); border-radius:5px; padding:1px 6px;}
+hr{border:none; border-top:1px solid var(--border); margin:44px 0;}
+
+/* ---------- boxes / callouts ---------- */
+.tldr{background:var(--panel); border:1px solid var(--border); border-radius:14px;
+  padding:18px 22px; margin:22px 0 8px;}
+.tldr h4{margin:0 0 6px; font-family:var(--mono); font-size:12.5px; letter-spacing:1px;
+  text-transform:uppercase; color:var(--accent);}
+.tldr p{margin:6px 0;}
+.note{border-left:3px solid var(--accent); background:var(--accent-soft);
+  border-radius:0 10px 10px 0; padding:12px 18px; margin:20px 0; font-size:15.5px;}
+.note b{color:var(--accent);}
+.conslist{margin:14px 0; padding:0; list-style:none;}
+.conslist li{position:relative; padding-left:22px; margin:10px 0; font-size:15.5px; line-height:1.55;}
+.conslist li::before{content:""; position:absolute; left:2px; top:9px; width:7px; height:7px;
+  border-radius:2px; background:var(--c4);}
+.conslist b{color:var(--fg);}
+
+/* ---------- generic diagram shells ---------- */
+.diagram{background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  padding:24px; margin:22px 0;}
+.arrow{display:flex; align-items:center; color:var(--faint); font-size:22px; font-weight:700;}
+
+/* ---------- stepper ---------- */
+.stepper{background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  margin:18px 0 8px; overflow:hidden; outline:none;}
+.stepper:focus-visible{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);}
+.stepper .head{display:flex; align-items:center; justify-content:space-between;
+  padding:12px 18px; border-bottom:1px solid var(--border); background:var(--panel);}
+.stepper .head .ttl{font-family:var(--mono); font-size:12.5px; letter-spacing:.6px; color:var(--muted);}
+.stepper .head .counter{font-family:var(--mono); font-size:12.5px; color:var(--accent); font-weight:500;}
+.stage{position:relative; min-height:360px; padding:26px 24px 6px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;}
+.step{display:none; width:100%;}
+.step.active{display:block; animation:fade .25s ease;}
+@keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
+.stage .viz{display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:14px; min-height:240px;}
+.cap{margin-top:14px; text-align:center; font-size:15px; color:var(--fg);
+  max-width:660px; margin-left:auto; margin-right:auto;}
+.cap .n{display:inline-block; background:var(--accent); color:#fff; font-family:var(--mono);
+  font-size:12px; font-weight:600; border-radius:999px; padding:1px 9px; margin-right:8px;}
+.controls{display:flex; align-items:center; justify-content:center; gap:16px;
+  padding:14px; border-top:1px solid var(--border); background:var(--panel);}
+.dots{display:flex; gap:7px;}
+.dot{width:10px; height:10px; border-radius:50%; padding:0; border:none; cursor:pointer;
+  background:var(--border); transition:.15s;}
+.dot:hover{background:var(--faint);}
+.dot.on{background:var(--accent); transform:scale(1.3);}
+
+/* generic little pieces used inside steps */
+.stack{display:flex; flex-direction:column; gap:10px; align-items:center;}
+.pill{background:var(--panel); border:1px solid var(--border); border-radius:10px;
+  padding:8px 14px; font-size:13.5px; max-width:520px; text-align:center;}
+.pill.hl{border-color:var(--accent); background:var(--accent-soft);}
+.pill.mono{font-family:var(--mono); font-size:12.5px;}
+.row{display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap;}
+.vec{display:flex; gap:5px; align-items:center;}
+.vec i{width:9px; height:20px; border-radius:2px; background:var(--accent); opacity:.8;}
+
+/* ---------- split layout (input → process → output) ---------- */
+.split{display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; width:100%;}
+.split .colv{flex:1 1 290px; min-width:240px; max-width:350px;}
+.split .mid{display:flex; flex-direction:column; align-items:center; gap:6px; flex:0 0 auto;}
+.split .mid .arrow2{font-size:22px; font-weight:700; line-height:1; color:var(--faint);}
+.split .mid .midlbl{font-family:var(--mono); font-size:10px; letter-spacing:.5px; color:var(--faint);
+  text-align:center; line-height:1.35;}
+@media(max-width:620px){ .split .mid .arrow2{transform:rotate(90deg);} }
+.colcap{font-family:var(--mono); font-size:10.5px; letter-spacing:.8px; text-transform:uppercase;
+  color:var(--faint); margin:0 0 6px 2px;}
+.scol{flex:0 1 auto; text-align:left; min-width:0;}
+.ar{color:var(--faint); font-size:22px; font-weight:700; flex:0 0 auto; line-height:1;}
+@media(max-width:620px){ .ar{transform:rotate(90deg);} }
+.blbl{font-family:var(--mono); font-size:10px; color:var(--muted); margin-bottom:5px;}
+
+/* small doc card */
+.sdoc{background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:13px 15px; box-shadow:0 1px 4px rgba(0,0,0,.06); font-size:12px;}
+.sdoc .dt{font-family:var(--display); font-weight:600; font-size:13.5px; margin-bottom:7px;}
+.sdoc .dh{font-weight:600; color:var(--fg); margin:9px 0 2px;}
+.sdoc .db{color:var(--muted); line-height:1.45;}
+.hlt{background:var(--accent-soft); color:var(--fg); border-radius:3px; padding:0 3px;}
+
+/* wordmark / engine / llm chips */
+.engine{display:inline-flex; align-items:center; gap:7px; font-family:var(--display);
+  font-weight:600; font-size:12.5px; padding:7px 13px; border-radius:9px;
+  border:1px solid var(--border); background:var(--panel);}
+.llmchip{display:inline-flex; align-items:center; gap:6px; font-family:var(--display); font-weight:600;
+  font-size:13px; padding:7px 13px; border-radius:9px; border:1px solid var(--c2);
+  background:var(--accent-soft); color:var(--c2);}
+.prompt{font-family:var(--mono); font-size:10px; line-height:1.5; text-align:left; color:var(--muted);
+  background:var(--surface); border:1px dashed var(--border); border-radius:8px; padding:8px 10px;
+  max-width:230px; margin-top:9px;}
+.prompt b{color:var(--fg);}
+.jsonout{font-family:var(--mono); font-size:10.5px; line-height:1.5; text-align:left; color:var(--fg);
+  background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 10px;
+  white-space:pre-wrap; margin-bottom:8px;}
+.jsonout .jw{color:var(--faint);}
+
+/* ---------- ranked result lists ---------- */
+.rlist{display:flex; flex-direction:column; gap:6px; width:100%; max-width:340px;}
+.rlist.narrow{max-width:250px;}
+.ritem{display:flex; align-items:center; gap:9px; background:var(--surface); border:1px solid var(--border);
+  border-radius:9px; padding:7px 10px; font-size:12px; transition:.2s;}
+.ritem .rank{font-family:var(--mono); font-size:11px; color:var(--faint); width:16px; text-align:right; flex:0 0 auto;}
+.ritem .rlabel{flex:1 1 auto; color:var(--muted); line-height:1.3; min-width:0;}
+.ritem.hit{border-color:var(--accent); background:var(--accent-soft);}
+.ritem.hit .rlabel{color:var(--fg); font-weight:600;}
+.ritem.dim{opacity:.45;}
+.cbar{width:8px; height:20px; border-radius:3px; flex:0 0 auto;}
+.cbar.c1{background:var(--c1);} .cbar.c2{background:var(--c2);} .cbar.c3{background:var(--c3);}
+.cbar.c4{background:var(--c4);} .cbar.c5{background:var(--c5);} .cbar.cn{background:var(--cn);}
+.score{font-family:var(--mono); font-size:10.5px; font-weight:600; padding:1px 7px; border-radius:999px;
+  border:1px solid currentColor; flex:0 0 auto; width:34px; text-align:center;}
+.score.hi{color:var(--c1);} .score.lo{color:var(--faint);}
+
+/* ---------- RAPTOR tree ---------- */
+.rtree{display:flex; flex-direction:column; align-items:center; gap:7px; width:100%;}
+.rlevel{display:flex; gap:9px; justify-content:center; flex-wrap:wrap; align-items:stretch;}
+.tnode{font-family:var(--mono); font-size:10.5px; padding:7px 9px; border-radius:8px;
+  border:1px solid var(--cn); background:var(--surface); color:var(--muted);
+  max-width:150px; line-height:1.32; text-align:center; transition:.2s;}
+.tnode.sum{border-width:1.5px; font-weight:500;}
+.tnode.n1{border-color:var(--c1);} .tnode.n1.sum{color:var(--c1);}
+.tnode.n2{border-color:var(--c2);} .tnode.n2.sum{color:var(--c2);}
+.tnode.n3{border-color:var(--c4);} .tnode.n3.sum{color:var(--c4);}
+.tnode.root{border-color:var(--c5); color:var(--c5); font-weight:600; max-width:280px;}
+.tnode.pick{outline:2px solid var(--accent); outline-offset:2px; background:var(--accent-soft); color:var(--fg);}
+.tnode.faded{opacity:.4;}
+.levlbl{font-family:var(--mono); font-size:9.5px; letter-spacing:.6px; text-transform:uppercase;
+  color:var(--faint); text-align:center;}
+.upband{font-family:var(--mono); font-size:10px; letter-spacing:.4px; color:var(--faint);
+  display:flex; align-items:center; gap:7px; justify-content:center;}
+.upband .up{color:var(--c3); font-weight:700; font-size:15px;}
+.poolwrap{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; max-width:600px;}
+
+/* ---------- knowledge graph (SVG) ---------- */
+.graphwrap{display:flex; justify-content:center; width:100%;}
+.gsvg{max-width:100%; height:auto;}
+.gsvg .gedge{stroke:var(--faint); stroke-width:1.5; opacity:.7;}
+.gsvg .gnode-lbl{font-family:var(--mono); font-size:10px; fill:var(--fg);}
+.gsvg .gedge-lbl{font-family:var(--mono); font-size:8.5px; fill:var(--faint);}
+.glegend{display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top:4px;}
+.gleg{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; color:var(--muted);}
+.gleg i{width:11px; height:11px; border-radius:50%; flex:0 0 auto;}
+.budgetbar{display:flex; width:100%; max-width:320px; height:26px; border-radius:7px;
+  overflow:hidden; border:1px solid var(--border);}
+.budgetbar > div{height:100%;}
+
+/* ---------- community report cards ---------- */
+.creport{border:1.5px solid var(--border); border-radius:10px; padding:9px 12px; background:var(--surface);
+  text-align:left; max-width:230px; font-size:11.5px;}
+.creport .crh{font-family:var(--mono); font-size:10px; letter-spacing:.4px; margin-bottom:4px;}
+.creport .crb{color:var(--muted); line-height:1.4;}
+.creport.k4{border-color:var(--c4);} .creport.k4 .crh{color:var(--c4);}
+.creport.k2{border-color:var(--c2);} .creport.k2 .crh{color:var(--c2);}
+.creport.k1{border-color:var(--c1);} .creport.k1 .crh{color:var(--c1);}
+.creport.on{outline:2px solid var(--accent); outline-offset:2px;}
+
+/* ---------- head-to-head lanes ---------- */
+.lane{display:flex; align-items:center; gap:12px; width:100%; max-width:640px; margin:0 auto;
+  border:1px solid var(--border); border-radius:12px; padding:11px 14px; background:var(--surface);}
+.lane .lname{font-family:var(--display); font-weight:600; font-size:13px; width:96px; flex:0 0 auto; line-height:1.25;}
+.lane .lbody{flex:1 1 auto; font-size:12.5px; color:var(--muted); line-height:1.4;}
+.lane .verdict-chip{font-family:var(--mono); font-size:10px; padding:2px 8px; border-radius:999px;
+  flex:0 0 auto; white-space:nowrap;}
+.vc-bad{color:var(--c4); border:1px solid var(--c4);}
+.vc-ok{color:var(--c3); border:1px solid var(--c3);}
+.vc-good{color:var(--c1); border:1px solid var(--c1);}
+.lane.rag{border-left:3px solid var(--cn);}
+.lane.raptor{border-left:3px solid var(--c3);}
+.lane.graph{border-left:3px solid var(--c5);}
+
+/* ---------- summary table ---------- */
+.tblwrap{overflow-x:auto; margin:20px 0;}
+table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:820px;}
+th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--border); vertical-align:top;}
+th{font-family:var(--mono); font-size:12px; letter-spacing:.5px; text-transform:uppercase;
+   color:var(--muted); background:var(--panel);}
+tr td:first-child{font-weight:600; white-space:nowrap;}
+.problem-tag{display:inline-block; font-family:var(--mono); font-size:11px; padding:2px 8px;
+  border-radius:999px; border:1px solid var(--border); white-space:nowrap;}
+.p-flat{color:var(--cn); border-color:var(--cn);}
+.p-tree{color:var(--c3); border-color:var(--c3);}
+.p-graph{color:var(--c5); border-color:var(--c5);}
+
+/* ---------- section divider ---------- */
+.camp{margin:56px 0 10px; padding-bottom:10px; border-bottom:1px solid var(--border);}
+.camp .eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:1.6px; text-transform:uppercase;}
+.camp .ctitle{font-family:var(--display); font-weight:600; font-size:22px; margin-top:4px; letter-spacing:-.2px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ 1 ============ -->
+  <h2><span class="kicker">01 · The basics</span>The two questions plain RAG can't answer</h2>
+  <p>Normal <strong>RAG</strong> (Retrieval-Augmented Generation) is by now a well-worn recipe: chop your documents into flat chunks, embed each one into a vector, and at query time fetch the handful of chunks that sit closest to the question. It's cheap, fast, and genuinely good at one thing — <em>"find me the passage that answers this."</em></p>
+  <p>But it quietly falls apart on two kinds of questions. The first is the <strong>big-picture</strong> question — <em>"what are the main themes across all of these reports?"</em> — where no single chunk holds the answer. The second is the <strong>connect-the-dots</strong> question, where the answer is scattered across pieces that don't individually look like the query. <strong>RAPTOR</strong> and <strong>GraphRAG</strong> are two well-known answers to exactly this, and they fix it in very different ways. This post walks through both — plainly, and step by step.</p>
+  <p>I'll assume you know the basics of chunking and retrieval already — if not, I wrote separate posts on <a href="https://hzjken.github.io/practical-chunking-2026.html" target="_blank" rel="noopener">chunking</a> and <a href="https://hzjken.github.io/enhancing-retrieval-accuracy-in-rag.html" target="_blank" rel="noopener">retrieval accuracy</a> first.</p>
+
+  <!-- ============ 2 ============ -->
+  <h2><span class="kicker">02 · Where it breaks</span>Flat chunks lose the forest for the trees</h2>
+  <p>Here's the whole problem in one picture. Plain vector search embeds each chunk once and returns the ones nearest the query. Ask it something specific and it shines. Ask it something that spans the corpus, and it hands back a few disconnected fragments.</p>
+  <div class="diagram">
+    <div class="split">
+      <div class="scol" style="max-width:230px;">
+        <div class="blbl">a big-picture query</div>
+        <div class="pill hl" style="margin:0;">"What are the main themes across Nimbus's incident reports?"</div>
+      </div>
+      <div class="mid">
+        <div class="midlbl">embed →<br>top-k by cosine</div>
+        <div class="vec"><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+      <div class="ar">→</div>
+      <div class="scol" style="max-width:300px;">
+        <div class="blbl">5 nearest chunks — all from one report</div>
+        <div class="rlist">
+          <div class="ritem"><span class="rank">1</span><span class="cbar cn"></span><span class="rlabel">"…the March outage lasted 3 hours…"</span></div>
+          <div class="ritem"><span class="rank">2</span><span class="cbar cn"></span><span class="rlabel">"…affected EU customers only…"</span></div>
+          <div class="ritem"><span class="rank">3</span><span class="cbar cn"></span><span class="rlabel">"…incident postmortem, page 4…"</span></div>
+          <div class="ritem dim"><span class="rank">4</span><span class="cbar cn"></span><span class="rlabel">"…the March outage, again…"</span></div>
+          <div class="ritem dim"><span class="rank">5</span><span class="cbar cn"></span><span class="rlabel">"…March, one more time…"</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p>The word "themes" doesn't point at any one chunk, so cosine similarity just grabs the five that happen to say "incident" the loudest — likely all from the same noisy report — and the model answers as if that one report were the whole story. Two failure modes are hiding here, and each technique targets one:</p>
+  <div class="tldr">
+    <p><strong style="color:var(--c3)">1 · Big-picture / summarization.</strong> "What are the themes?", "summarize everything about billing." The answer is a <em>synthesis</em> of many chunks, but top-k only returns a few — so you get a keyhole view. <strong>RAPTOR</strong> tackles this by pre-computing summaries at every level.</p>
+    <p><strong style="color:var(--c5)">2 · Connect-the-dots / multi-hop.</strong> "Which incidents share a root cause?" needs to <em>link</em> facts from different documents that never mention each other. Similarity can't follow a chain of relationships. <strong>GraphRAG</strong> solves this by making those relationships explicit as a graph.</p>
+  </div>
+  <p>Let's start with the smaller leap.</p>
+
+  <!-- ============ 3 · RAPTOR ============ -->
+  <div class="camp">
+    <div class="eyebrow" style="color:var(--c3)">Technique 1 · the smaller leap</div>
+    <div class="ctitle">RAPTOR — a tree of summaries</div>
+  </div>
+  <p>RAPTOR stays inside the world you already know — chunks and embeddings — and adds one thing on top: a <strong>tree of summaries</strong>. The insight is simple. If big-picture questions fail because there's no chunk that summarizes the whole, then <em>build those summaries ahead of time</em> — and not just one, but a whole hierarchy, from tight local summaries up to a bird's-eye view of everything.</p>
+  <p>The name spells out the recipe: <strong>R</strong>ecursive <strong>A</strong>bstractive <strong>P</strong>rocessing for <strong>T</strong>ree-<strong>O</strong>rganized <strong>R</strong>etrieval. You recursively embed, cluster, and summarize your chunks into a tree, then retrieve from every level of it at once. It's from <a href="https://arxiv.org/abs/2401.18059" target="_blank" rel="noopener">Sarthi et al. at Stanford</a> (2024), with an official <a href="https://github.com/parthsarthi03/raptor" target="_blank" rel="noopener">implementation</a>. Here's how the tree gets built:</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">RAPTOR · BUILDING THE TREE</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:250px;">
+              <div class="blbl">the corpus</div>
+              <div class="sdoc">
+                <div class="dt">Nimbus — reports &amp; docs</div>
+                <div class="db">Incident postmortems, billing policy, security whitepaper, product manuals…</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">chunk +<br>embed</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:300px;">
+              <div class="blbl">leaf nodes · one vector each</div>
+              <div class="rtree">
+                <div class="rlevel">
+                  <span class="tnode">X-200 boot fix</span>
+                  <span class="tnode">X-200 specs</span>
+                  <span class="tnode">billing = usage</span>
+                </div>
+                <div class="rlevel">
+                  <span class="tnode">refund policy</span>
+                  <span class="tnode">encryption</span>
+                  <span class="tnode">SSO &amp; roles</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>Start exactly like normal RAG: cut the corpus into small chunks (~100 tokens each) and embed them. These become the <b>leaf nodes</b> — the bottom layer of the tree. Nothing new yet.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:150px;">
+              <div class="blbl">leaf vectors</div>
+              <div class="stack" style="gap:6px; align-items:flex-start;">
+                <div class="vec"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="vec"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="vec"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              </div>
+              <div class="blbl" style="margin-top:6px;">hundreds of numbers each</div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">UMAP ·<br>shrink the<br>dimensions</div>
+              <div class="arrow2">→</div>
+              <div class="midlbl">GMM ·<br>soft-cluster</div>
+            </div>
+            <div class="scol" style="max-width:250px;">
+              <div class="blbl">clusters — a leaf can join two</div>
+              <div class="graphwrap" style="justify-content:flex-start;">
+                <svg class="gsvg" width="250" height="180" viewBox="0 0 250 180" fill="none">
+                  <ellipse cx="90" cy="80" rx="72" ry="56" fill="var(--c1)" opacity=".1" stroke="var(--c1)" stroke-width="1" stroke-dasharray="4 3"/>
+                  <ellipse cx="165" cy="105" rx="70" ry="55" fill="var(--c2)" opacity=".1" stroke="var(--c2)" stroke-width="1" stroke-dasharray="4 3"/>
+                  <text x="55" y="34" class="gedge-lbl" fill="var(--c1)">cluster 1</text>
+                  <text x="185" y="168" class="gedge-lbl" fill="var(--c2)">cluster 2</text>
+                  <circle cx="62" cy="70" r="5.5" fill="var(--c1)"/>
+                  <circle cx="80" cy="105" r="5.5" fill="var(--c1)"/>
+                  <circle cx="100" cy="60" r="5.5" fill="var(--c1)"/>
+                  <circle cx="185" cy="90" r="5.5" fill="var(--c2)"/>
+                  <circle cx="200" cy="120" r="5.5" fill="var(--c2)"/>
+                  <circle cx="170" cy="135" r="5.5" fill="var(--c2)"/>
+                  <circle cx="128" cy="95" r="6" fill="none" stroke="var(--accent)" stroke-width="2"/>
+                  <text x="112" y="82" class="gedge-lbl" fill="var(--accent)">in both</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span><b>Cluster the leaves — the careful part.</b> Embeddings have hundreds of dimensions, where distances get unreliable, so RAPTOR first shrinks them with <b>UMAP</b>, then runs a <b>Gaussian Mixture Model</b> for <em>soft</em> clustering: a leaf can belong to more than one cluster (the ringed dot), and the number of clusters is chosen automatically. Related passages group up no matter which document they came from.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:230px;">
+              <div class="blbl">the clusters from step 2</div>
+              <div class="rtree">
+                <div class="rlevel">
+                  <span class="tnode n1">X-200 boot fix</span>
+                  <span class="tnode n1">X-200 specs</span>
+                </div>
+                <div class="rlevel">
+                  <span class="tnode n2">billing = usage</span>
+                  <span class="tnode n2">refund policy</span>
+                </div>
+                <div class="rlevel">
+                  <span class="tnode n3">encryption</span>
+                  <span class="tnode n3">SSO &amp; roles</span>
+                </div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt">Summarize this group of related passages into one short paragraph.</div>
+            </div>
+            <div class="scol" style="max-width:230px;">
+              <div class="blbl">one summary per cluster → parent nodes</div>
+              <div class="rtree">
+                <div class="rlevel"><span class="tnode n1 sum">Hardware: X-200 specs &amp; boot troubleshooting</span></div>
+                <div class="rlevel"><span class="tnode n2 sum">Billing: usage-based, with refunds on early cancel</span></div>
+                <div class="rlevel"><span class="tnode n3 sum">Security: encryption + access control</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span><b>Summarize each cluster.</b> Hand every cluster to an LLM to write one short summary. Each summary becomes a new <b>parent node</b> — a single node that stands in for its whole cluster of leaves.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="rtree">
+            <div class="levlbl">Level 2 · root</div>
+            <div class="rlevel"><span class="tnode root">Nimbus at a glance: a cloud product with its billing model and security posture</span></div>
+            <div class="upband"><span class="up">↑</span> re-embed &amp; summarize again</div>
+            <div class="levlbl">Level 1 · summaries</div>
+            <div class="rlevel">
+              <span class="tnode n1 sum">Hardware: X-200 specs &amp; boot fixes</span>
+              <span class="tnode n2 sum">Billing: usage-based + refunds</span>
+              <span class="tnode n3 sum">Security: encryption + access</span>
+            </div>
+            <div class="upband"><span class="up">↑</span> cluster &amp; summarize</div>
+            <div class="levlbl">Level 0 · leaves (original chunks)</div>
+            <div class="rlevel">
+              <span class="tnode n1">X-200 boot fix</span>
+              <span class="tnode n1">X-200 specs</span>
+              <span class="tnode n2">billing = usage</span>
+              <span class="tnode n2">refund policy</span>
+              <span class="tnode n3">encryption</span>
+              <span class="tnode n3">SSO &amp; roles</span>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">4</span><b>Now recurse.</b> Treat those summaries as a new layer, re-embed them, cluster and summarize <em>again</em> — and keep going, layer by layer, until the top is down to a handful of high-level summaries (RAPTOR caps this at a few layers). The result is a tree: detailed at the bottom, ever more abstract toward the top.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:200px;">
+              <div class="blbl">query</div>
+              <div class="pill hl" style="margin:0;">"Summarize how Nimbus billing works"</div>
+              <div class="blbl" style="margin-top:10px;">collapse the tree → one flat pool of <b>every</b> node</div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">rank all nodes<br>by similarity</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:290px;">
+              <div class="blbl">retrieve top nodes up to a token budget</div>
+              <div class="poolwrap">
+                <span class="tnode n2 sum pick">Billing: usage-based + refunds</span>
+                <span class="tnode n2 pick">refund policy</span>
+                <span class="tnode root faded">Nimbus at a glance</span>
+                <span class="tnode n1 faded">X-200 boot fix</span>
+                <span class="tnode n3 faded">encryption</span>
+                <span class="tnode n1 faded">X-200 specs</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">5</span><b>Retrieval — the "collapsed tree".</b> Flatten every node (leaves <em>and</em> summaries) into one pool and rank them all by cosine similarity to the query, taking the top ones up to a token budget. A billing question pulls the <b>billing summary</b> directly — one node that already synthesizes the whole topic — instead of scattered fragments. RAPTOR tested this against a top-down <em>tree traversal</em> (walk the tree layer by layer), and the simple collapsed pool won — so it's the default.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>The payoff: because summaries live right alongside the raw chunks in the same index, a broad question retrieves a ready-made synthesis, while a narrow question still finds its exact leaf. It's an elegant fix for the big-picture problem, and it's <strong>cheap to bolt onto an existing vector pipeline</strong> — same embeddings, same retrieval, just extra summary nodes. In the paper, paired with GPT-4, it pushed the best QuALITY benchmark score up by about <strong>20 absolute points</strong> (to 82.6%).</p>
+  <div class="note"><b>A related idea worth a link.</b> The <a href="https://hzjken.github.io/llm-wiki.html" target="_blank" rel="noopener">LLM wiki</a> shares RAPTOR's core move. There, a model compiles wiki pages that synthesize your sources — and if you drop those generated pages into the same vector DB as the original source chunks and retrieve flat over both, you get something in RAPTOR's spirit: a synthesized, higher-level layer sitting right next to the raw detail in one flat index, so a broad question lands on a wiki page while a narrow one still finds its source chunk. The difference is <em>how that layer is organized</em> — RAPTOR builds a strict bottom-up hierarchy by recursive clustering, whereas a wiki is arranged by entity and topic with cross-links and updated incrementally rather than rebuilt.</div>
+  <p>The catches are real, though. Every summary is one more <strong>LLM call at indexing time</strong>, and summaries can smooth over or drop the very detail you needed — a game of telephone up the tree. And it's still fundamentally <em>similarity</em> retrieval: RAPTOR can summarize a topic beautifully, but it doesn't model how two specific entities <em>relate</em>. That's exactly the gap the next technique fills.</p>
+
+  <!-- ============ 4 · GraphRAG ============ -->
+  <div class="camp">
+    <div class="eyebrow" style="color:var(--c5)">Technique 2 · the bigger leap</div>
+    <div class="ctitle">GraphRAG — a map of who relates to whom</div>
+  </div>
+  <p>GraphRAG (from <a href="https://arxiv.org/abs/2404.16130" target="_blank" rel="noopener">Microsoft Research</a>, 2024, with a widely-used <a href="https://microsoft.github.io/graphrag/" target="_blank" rel="noopener">open-source library</a>) makes a bigger bet. Instead of storing text and matching on similarity, it reads the whole corpus and builds an explicit <strong>knowledge graph</strong>: the entities (people, products, places, events) become nodes, and the relationships between them become edges. Once the facts are wired together, you can answer questions by <em>traversing the connections</em>, not just by fuzzy-matching words.</p>
+  <p>The subtitle of the paper — "From Local to Global" — is the whole idea. There are two phases: an expensive <strong>indexing</strong> phase that builds the graph and pre-summarizes it, and a <strong>query</strong> phase that reads from it. Let's build it first.</p>
+
+  <h3>Phase 1 · Building the graph</h3>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">GRAPHRAG · INDEXING</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:230px;">
+              <div class="blbl">the corpus · reports &amp; docs</div>
+              <div class="sdoc">
+                <div class="dt">March postmortem</div>
+                <div class="db">On Tuesday the X-200 service in the EU region went down for 3 hours after a TLS certificate expired. The Payments team later issued refunds to affected accounts…</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">split into<br>chunks</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:250px;">
+              <div class="blbl">chunks · a few hundred tokens each</div>
+              <div class="stack" style="gap:6px; align-items:stretch;">
+                <div class="pill mono" style="margin:0;">"…X-200 in the EU region went down 3 hours after a TLS cert expired…"</div>
+                <div class="pill mono" style="margin:0;">"…Payments team issued refunds to affected accounts…"</div>
+                <div class="pill mono" style="margin:0;">"…usage-based billing, refunds on early cancel…"</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span><b>Chunk the corpus.</b> Exactly like any RAG pipeline, split every document into bite-size chunks. GraphRAG keeps these around — they're the raw text the next step reads, and later what local search retrieves — but on their own they're still just flat text, with no structure yet.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:250px;">
+              <div class="blbl">one chunk of a report</div>
+              <div class="sdoc">
+                <div class="dt">March postmortem</div>
+                <div class="db">On Tuesday the <span class="hlt">X-200</span> service in the <span class="hlt">EU region</span> went down for 3 hours after a <span class="hlt">TLS certificate</span> expired.</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt"><b>Extract</b> entities and the relationships between them. Return them as a list.</div>
+            </div>
+            <div class="scol" style="max-width:250px;">
+              <div class="blbl">extracted entities + relationships</div>
+              <div class="jsonout" style="margin:0;">entities: X-200 <span class="jw">(product)</span>,
+  EU region <span class="jw">(location)</span>,
+  TLS cert <span class="jw">(component)</span>,
+  Tue outage <span class="jw">(event)</span>
+rels:
+  outage —hit→ EU region
+  outage —took down→ X-200
+  outage —caused by→ TLS cert
+<span style="color:var(--accent)">from: chunk #5   ← link kept on each</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span><b>Extract entities &amp; relationships.</b> An LLM reads <em>every</em> chunk and pulls out the entities and the relationships connecting them — turning free text into structured <b>(node)—[relationship]→(node)</b> triples. It also records the <b>chunk each item came from</b> (a <code>text_unit_ids</code> link), so local search can fetch the raw text back later. This is the expensive step: one LLM pass over the whole corpus.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="graphwrap">
+            <svg class="gsvg" width="460" height="250" viewBox="0 0 460 250" fill="none">
+              <line class="gedge" x1="95" y1="70" x2="95" y2="180"/>
+              <line class="gedge" x1="225" y1="120" x2="95" y2="70"/>
+              <line class="gedge" x1="225" y1="120" x2="95" y2="180"/>
+              <line class="gedge" x1="225" y1="120" x2="225" y2="215"/>
+              <line class="gedge" x1="365" y1="65" x2="365" y2="140"/>
+              <line class="gedge" x1="365" y1="140" x2="365" y2="210"/>
+              <text class="gedge-lbl" x="150" y="88" fill="var(--faint)">w:2</text>
+              <text class="gedge-lbl" x="233" y="172" fill="var(--faint)">w:3</text>
+              <g>
+                <circle cx="95" cy="70" r="9" fill="var(--cn)"/><text class="gnode-lbl" x="82" y="52" text-anchor="middle">X-200</text>
+                <circle cx="95" cy="180" r="9" fill="var(--cn)"/><text class="gnode-lbl" x="80" y="203" text-anchor="middle">EU region</text>
+                <circle cx="225" cy="120" r="9" fill="var(--cn)"/><text class="gnode-lbl" x="225" y="104" text-anchor="middle">Tue outage</text>
+                <circle cx="225" cy="215" r="9" fill="var(--cn)"/><text class="gnode-lbl" x="225" y="238" text-anchor="middle">TLS cert</text>
+                <circle cx="365" cy="65" r="9" fill="var(--cn)"/><text class="gnode-lbl" x="365" y="49" text-anchor="middle">Payments team</text>
+                <circle cx="365" cy="140" r="9" fill="var(--cn)"/><text class="gnode-lbl" x="392" y="144" text-anchor="start">Billing</text>
+                <circle cx="365" cy="210" r="9" fill="var(--cn)"/><text class="gnode-lbl" x="392" y="214" text-anchor="start">Refunds</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span><b>Merge into one graph.</b> Stitch every chunk's triples together: the same entity across ten chunks collapses to one node, and repeated links between the same pair collapse to one edge. Two things happen on merge — the edge's <b>weight</b> is simply a <em>count</em> of how many times that pair co-occurred (no LLM strength score; each co-occurrence just adds 1), and however differently each mention described the link, all those descriptions are handed to the LLM and <b>summarized into one</b>. So the whole corpus becomes a single connected map of facts.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:210px;">
+              <div class="blbl">entity "X-200" · a description from each mention</div>
+              <div class="stack" style="gap:5px; align-items:stretch;">
+                <div class="pill mono" style="margin:0; font-size:11px;">chunk 3: "Nimbus's flagship compute service"</div>
+                <div class="pill mono" style="margin:0; font-size:11px;">chunk 7: "runs in the EU region"</div>
+                <div class="pill mono" style="margin:0; font-size:11px;">chunk 12: "hit by the March outage"</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt">Merge these into one description of the entity.</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:220px;">
+              <div class="blbl">one entity · consolidated, then embedded</div>
+              <div class="creport" style="border-color:var(--accent); margin:0 0 9px;">
+                <div class="crh" style="color:var(--accent)">X-200 · product</div>
+                <div class="crb">Nimbus's flagship compute service, running in the EU region; hit by the March outage.</div>
+              </div>
+              <div class="row" style="gap:8px; justify-content:flex-start;">
+                <span class="blbl" style="margin:0;">embed name + description →</span>
+                <div class="vec"><i></i><i></i><i></i><i></i><i></i></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">4</span><b>Describe &amp; embed each entity.</b> The extractor didn't just name each entity — it also wrote a short <b>description</b> of it from every chunk it appeared in. On merge, those descriptions are fused into one, and then the entity's <b>name + description is embedded into a vector</b>. That vector is exactly what local search matches the query against — <em>this is where each entity gets its embedding.</em></p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="graphwrap">
+            <svg class="gsvg" width="460" height="250" viewBox="0 0 460 250" fill="none">
+              <path d="M60 45 Q150 20 250 100 Q270 200 150 225 Q40 210 55 120 Z" fill="var(--c4)" opacity=".09" stroke="var(--c4)" stroke-width="1" stroke-dasharray="4 3"/>
+              <path d="M330 35 Q430 30 425 130 Q420 235 360 235 Q320 200 335 120 Z" fill="var(--c2)" opacity=".09" stroke="var(--c2)" stroke-width="1" stroke-dasharray="4 3"/>
+              <line class="gedge" x1="95" y1="70" x2="95" y2="180"/>
+              <line class="gedge" x1="225" y1="120" x2="95" y2="70"/>
+              <line class="gedge" x1="225" y1="120" x2="95" y2="180"/>
+              <line class="gedge" x1="225" y1="120" x2="225" y2="215"/>
+              <line class="gedge" x1="365" y1="65" x2="365" y2="140"/>
+              <line class="gedge" x1="365" y1="140" x2="365" y2="210"/>
+              <g>
+                <circle cx="95" cy="70" r="9" fill="var(--c4)"/><text class="gnode-lbl" x="82" y="52" text-anchor="middle">X-200</text>
+                <circle cx="95" cy="180" r="9" fill="var(--c4)"/><text class="gnode-lbl" x="80" y="203" text-anchor="middle">EU region</text>
+                <circle cx="225" cy="120" r="9" fill="var(--c4)"/><text class="gnode-lbl" x="225" y="104" text-anchor="middle">Tue outage</text>
+                <circle cx="225" cy="215" r="9" fill="var(--c4)"/><text class="gnode-lbl" x="225" y="238" text-anchor="middle">TLS cert</text>
+                <circle cx="365" cy="65" r="9" fill="var(--c2)"/><text class="gnode-lbl" x="365" y="49" text-anchor="middle">Payments team</text>
+                <circle cx="365" cy="140" r="9" fill="var(--c2)"/><text class="gnode-lbl" x="392" y="144" text-anchor="start">Billing</text>
+                <circle cx="365" cy="210" r="9" fill="var(--c2)"/><text class="gnode-lbl" x="392" y="214" text-anchor="start">Refunds</text>
+              </g>
+            </svg>
+          </div>
+          <div class="glegend">
+            <span class="gleg"><i style="background:var(--c4)"></i>Community A · Infrastructure</span>
+            <span class="gleg"><i style="background:var(--c2)"></i>Community B · Billing</span>
+          </div>
+        </div>
+        <p class="cap"><span class="n">5</span><b>Find communities.</b> A clustering algorithm (GraphRAG uses <b>Leiden</b>) partitions the graph into <b>communities</b> — clumps of nodes densely wired to each other but loosely to the rest. Here the infrastructure facts fall into one community, the billing facts into another. On a real corpus this is hierarchical: communities nest inside bigger communities.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:215px;">
+              <div class="blbl">input: the community's element descriptions</div>
+              <div class="stack" style="gap:5px; align-items:stretch;">
+                <div class="pill mono" style="margin:0; font-size:10.5px;">entity · Tue outage: "a 3-hour EU outage…"</div>
+                <div class="pill mono" style="margin:0; font-size:10.5px;">entity · TLS cert: "certificate that expired…"</div>
+                <div class="pill mono" style="margin:0; font-size:10.5px;">rel · outage —caused by→ TLS cert</div>
+                <div class="pill mono" style="margin:0; font-size:10.5px; border-color:var(--c4); color:var(--c4);">✗ not the raw source chunks</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt">Write a report from these <b>entity &amp; relationship descriptions</b>.</div>
+            </div>
+            <div class="scol" style="max-width:230px;">
+              <div class="blbl">community reports</div>
+              <div class="creport k4" style="margin-bottom:8px;">
+                <div class="crh">REPORT · INFRASTRUCTURE</div>
+                <div class="crb">The X-200 service runs in the EU region. An expired TLS certificate caused a 3-hour outage there.</div>
+              </div>
+              <div class="creport k2">
+                <div class="crh">REPORT · BILLING</div>
+                <div class="crb">The Payments team owns usage-based billing, which includes a refund policy.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">6</span><b>Summarize each community.</b> An LLM writes a <b>community report</b> for each one — but note what it's fed: the <b>descriptions of that community's entities and relationships</b> (plus any claims), added in order of prominence until a token budget, <b>not the original source chunks</b>. If a community is too big to fit, GraphRAG substitutes its <b>sub-community reports</b> for the detail — that's the bottom-up part. These reports become the pre-computed "global" knowledge the query phase reads from.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>That's the index: a graph of entities and relationships, carved into communities, each with its own summary. It's a lot of machinery — but notice what you now have that flat chunks never did: an explicit statement that <em>the outage was caused by the TLS cert and hit the EU region</em>, ready to be traversed.</p>
+  <div class="note"><b>One honest limitation: entity resolution.</b> That merge back in step 3 is only an <em>exact-name</em> match, so the same real thing written slightly differently across documents — "X-200", "Nimbus X-200", "the X-200 service" — can end up as separate nodes. The paper leans on <b>resilience</b> rather than fixing it: duplicates usually sit close in the graph and fall into the same community, so the community report co-summarizes them anyway (global search barely notices; local search, which matches a single node, is more exposed). Solving it <em>properly</em> means adding an <b>entity-resolution step</b> — cluster near-identical names by embedding or fuzzy similarity, or let an LLM judge which nodes are the same, then merge them — which GraphRAG treats as an optional layer to bolt on, not part of the base pipeline.</div>
+
+  <h3>Phase 2 · Answering a global question</h3>
+  <p>This is where "from local to global" pays off. For a broad, whole-corpus question, GraphRAG doesn't search for chunks at all — it runs a <strong>map-reduce over the community reports</strong>.</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">GRAPHRAG · GLOBAL SEARCH (MAP-REDUCE)</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:175px;">
+              <div class="blbl">the question</div>
+              <div class="pill hl" style="margin:0;">"What are the main themes across Nimbus's reports?"</div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt">Using <b>this one community report</b>, list points that help answer the question. Score each <b>0–100</b> for relevance.</div>
+            </div>
+            <div class="scol" style="max-width:280px;">
+              <div class="blbl">run once per community → rated key points</div>
+              <div class="creport k4" style="margin:0 0 5px; padding:6px 10px;"><div class="crh">INFRASTRUCTURE report</div></div>
+              <div class="stack" style="gap:4px; align-items:stretch; margin-bottom:9px;">
+                <div class="ritem"><span class="score hi">90</span><span class="rlabel">reliability — an EU outage from an expired TLS cert</span></div>
+                <div class="ritem dim"><span class="score lo">10</span><span class="rlabel">X-200 hardware spec detail</span></div>
+              </div>
+              <div class="creport k2" style="margin:0 0 5px; padding:6px 10px;"><div class="crh">BILLING report</div></div>
+              <div class="stack" style="gap:4px; align-items:stretch;">
+                <div class="ritem"><span class="score hi">85</span><span class="rlabel">revenue ops — usage billing &amp; refunds</span></div>
+                <div class="ritem dim"><span class="score lo">15</span><span class="rlabel">Payments team headcount</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span><b>Map — every community answers separately.</b> The exact same question is run against <em>each</em> community report on its own, in parallel. Each run lists the points from its slice of the graph that help answer the question, and <b>scores every point 0–100</b> for relevance — so off-topic bits (a hardware spec, a headcount) score near zero. Because every community is asked, nothing in the corpus is skipped.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:270px;">
+              <div class="blbl">all key points pooled, sorted by score</div>
+              <div class="rlist" style="max-width:none;">
+                <div class="ritem hit"><span class="score hi">90</span><span class="rlabel">reliability — EU outage from expired TLS cert</span></div>
+                <div class="ritem hit"><span class="score hi">85</span><span class="rlabel">revenue ops — usage billing &amp; refunds</span></div>
+                <div class="ritem dim"><span class="score lo">15</span><span class="rlabel">Payments team headcount</span></div>
+                <div class="ritem dim"><span class="score lo">10</span><span class="rlabel">X-200 hardware spec detail</span></div>
+              </div>
+              <div class="blbl" style="margin-top:5px; color:var(--c4);">low scorers dropped ✗</div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt">Write one answer to the question using only these top-ranked points.</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:220px;">
+              <div class="blbl">final answer</div>
+              <div class="pill hl" style="margin:0;">"Two themes dominate: <b>service reliability</b> — notably an EU outage from an expired TLS cert — and <b>revenue operations</b>, i.e. usage-based billing and refunds."</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span><b>Reduce — keep the best, write one answer.</b> Pool the key points from <em>all</em> communities into a single list, sort by the map-step scores, and drop the low ones. Whatever survives (trimmed to fit the context window) goes to a final LLM call that writes it up as one coherent answer. Since the points came from every community, distinct themes all make it in — exactly what flat top-k missed.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>Global search is GraphRAG's headline mode, but it's not the only one — and the other mode matters just as much. For a <strong>specific</strong> question, GraphRAG runs <strong>local search</strong>, and this is where the connect-the-dots, multi-hop reasoning actually happens.</p>
+
+  <h3>Local search · connecting the dots</h3>
+  <p>Global search sweeps every community; local search does the opposite — it zooms in. It finds the entities your question is about, gathers their <em>immediate</em> graph neighborhood plus the original text those entities came from, and answers from that tight bundle. Take <em>"what caused Tuesday's outage?"</em></p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">GRAPHRAG · LOCAL SEARCH</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:165px;">
+              <div class="blbl">the question</div>
+              <div class="pill hl" style="margin:0 0 10px;">"What caused Tuesday's outage?"</div>
+              <div class="blbl">embed it</div>
+              <div class="vec"><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">cosine similarity<br>vs. every entity's<br>embedding</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:250px;">
+              <div class="blbl">all entities in the graph, ranked</div>
+              <div class="rlist" style="max-width:none;">
+                <div class="ritem hit"><span class="score hi">0.91</span><span class="rlabel">Tue outage</span></div>
+                <div class="ritem"><span class="score lo">0.56</span><span class="rlabel">X-200</span></div>
+                <div class="ritem"><span class="score lo">0.52</span><span class="rlabel">EU region</span></div>
+                <div class="ritem dim"><span class="score lo">0.13</span><span class="rlabel">Billing</span></div>
+                <div class="ritem dim"><span class="score lo">0.09</span><span class="rlabel">Payments team</span></div>
+              </div>
+              <div class="blbl" style="margin-top:5px; color:var(--c1);">top match → entry point ✓</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span><b>Find the entry entity.</b> How does it know where to start? Every entity in the graph was stored with an <b>embedding</b> of its name and description. So local search just embeds the question and runs a <b>nearest-neighbor search across the whole entity list</b> — plain vector similarity, exactly like normal RAG, but over <em>entities</em> instead of chunks. The top match (or few) becomes the entry point; here <b>Tue outage</b> wins and the billing entities score too low to matter.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:250px;">
+              <div class="graphwrap" style="justify-content:flex-start;">
+                <svg class="gsvg" width="300" height="163" viewBox="0 0 460 250" fill="none">
+                  <line x1="95" y1="70" x2="95" y2="180" stroke="var(--accent)" stroke-width="2.5"/>
+                  <line x1="225" y1="120" x2="95" y2="70" stroke="var(--accent)" stroke-width="2.5"/>
+                  <line x1="225" y1="120" x2="95" y2="180" stroke="var(--accent)" stroke-width="2.5"/>
+                  <line x1="225" y1="120" x2="225" y2="215" stroke="var(--accent)" stroke-width="2.5"/>
+                  <line class="gedge" x1="365" y1="65" x2="365" y2="140" opacity=".25"/>
+                  <line class="gedge" x1="365" y1="140" x2="365" y2="210" opacity=".25"/>
+                  <text class="gedge-lbl" x="140" y="86" fill="var(--accent)">took down</text>
+                  <text class="gedge-lbl" x="150" y="165" fill="var(--accent)">hit</text>
+                  <text class="gedge-lbl" x="233" y="176" fill="var(--accent)">caused by</text>
+                  <circle cx="225" cy="120" r="10" fill="var(--accent)"/><text class="gnode-lbl" x="225" y="102" text-anchor="middle" fill="var(--fg)">Tue outage</text>
+                  <circle cx="95" cy="70" r="9" fill="var(--accent)"/><text class="gnode-lbl" x="82" y="52" text-anchor="middle" fill="var(--fg)">X-200</text>
+                  <circle cx="95" cy="180" r="9" fill="var(--accent)"/><text class="gnode-lbl" x="80" y="203" text-anchor="middle" fill="var(--fg)">EU region</text>
+                  <circle cx="225" cy="215" r="9" fill="var(--accent)"/><text class="gnode-lbl" x="225" y="238" text-anchor="middle" fill="var(--fg)">TLS cert</text>
+                  <circle cx="365" cy="65" r="8" fill="var(--cn)" opacity=".4"/><text class="gnode-lbl" x="365" y="49" text-anchor="middle" fill="var(--faint)" opacity=".6">Payments</text>
+                  <circle cx="365" cy="140" r="8" fill="var(--cn)" opacity=".4"/><text class="gnode-lbl" x="392" y="144" text-anchor="start" fill="var(--faint)" opacity=".6">Billing</text>
+                  <circle cx="365" cy="210" r="8" fill="var(--cn)" opacity=".4"/><text class="gnode-lbl" x="392" y="214" text-anchor="start" fill="var(--faint)" opacity=".6">Refunds</text>
+                </svg>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:235px;">
+              <div class="blbl">its 1-hop neighbors + relationships, ranked</div>
+              <div class="rlist" style="max-width:none;">
+                <div class="ritem hit"><span class="rlabel">outage —caused by→ TLS cert</span></div>
+                <div class="ritem"><span class="rlabel">outage —hit→ EU region</span></div>
+                <div class="ritem"><span class="rlabel">outage —took down→ X-200</span></div>
+              </div>
+              <div class="blbl" style="margin-top:6px;">capped at ≈ top-k × #entry entities</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span><b>Walk one hop out — and stop.</b> From each entry entity, local search grabs its <em>directly connected</em> neighbors and the relationships between them. That's the whole traversal — a <b>single hop</b>, not a deep crawl. The relationships are ranked (ones joining two entry entities first, then by how many entry entities they touch and their weight) and capped at a budget of about <code>top-k × the number of entry entities</code>, so the neighborhood stays bounded instead of exploding outward.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:180px;">
+              <div class="blbl">each selected entity</div>
+              <div class="pill mono" style="margin:0 0 8px; border-color:var(--accent);">Tue outage</div>
+              <div class="blbl">its stored link</div>
+              <div class="pill mono" style="margin:0; font-size:11px;">text_unit_ids → chunk #5</div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">follow the<br>provenance link</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:255px;">
+              <div class="blbl">the raw, unstructured context</div>
+              <div class="sdoc" style="margin-bottom:8px;">
+                <div class="dt">source chunk #5</div>
+                <div class="db">"On Tuesday the X-200 service in the EU region went down for 3 hours after a TLS certificate expired."</div>
+              </div>
+              <div class="creport k4" style="margin:0; padding:6px 10px;"><div class="crh">+ INFRASTRUCTURE community report · claims</div></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span><b>Pull the original text back in.</b> This is what separates local search from global: it doesn't answer from the graph alone. Using the <code>text_unit_ids</code> link saved at build time, it follows each selected entity back to the <em>original source chunks</em> it was extracted from and adds them to the context — along with the community reports those entities sit in, and any recorded claims. Structured graph facts and unstructured raw text, side by side.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="stack" style="gap:12px; width:100%; max-width:580px;">
+            <div style="width:100%;">
+              <div class="blbl" style="text-align:center;">one token budget (~12k), ranked &amp; split by context type</div>
+              <div class="budgetbar" style="max-width:none;">
+                <div style="flex:0 0 50%; background:var(--c3);"></div>
+                <div style="flex:0 0 35%; background:var(--c5);"></div>
+                <div style="flex:0 0 15%; background:var(--c2);"></div>
+              </div>
+            </div>
+            <div class="stack" style="gap:6px; align-items:stretch; width:100%;">
+              <div class="pill mono" style="margin:0; font-size:11px; text-align:left; border-color:var(--c3);"><b>source chunks · 50%</b> — the raw text units, e.g. <span class="jw">"…a TLS certificate expired…"</span></div>
+              <div class="pill mono" style="margin:0; font-size:11px; text-align:left; border-color:var(--c5);"><b>graph facts · 35%</b> — matched entities + descriptions <span class="jw">("Tue outage: a 3-hr EU outage")</span>, relationships <span class="jw">("outage —caused by→ TLS cert")</span>, and any claims <span class="jw">("breached the 99.9% SLA")</span></div>
+              <div class="pill mono" style="margin:0; font-size:11px; text-align:left; border-color:var(--c2);"><b>community reports · 15%</b> — the infrastructure report</div>
+            </div>
+            <div class="row" style="gap:12px;">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="ar">→</div>
+              <div class="pill hl" style="margin:0; max-width:310px;">"Tuesday's outage was caused by an <b>expired TLS certificate</b>. It hit the <b>EU region</b> and took the <b>X-200</b> service down for 3 hours."</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">4</span><b>Fit it to the window, then answer.</b> Everything gathered is ranked and packed into one fixed token budget, split by type: the raw <b>source chunks</b> (the biggest slice), the <b>graph facts</b> — the matched entities with their descriptions, the relationships, and any claims — and the <b>community reports</b>. That bundle goes to the LLM, which answers by connecting facts the graph made explicit — something flat similarity search would never have retrieved together.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>So which mode runs for a given question? The paper doesn't say — you just pick the method per call. But it's easy to automate with a simple <strong>intent-classification router</strong> (the same trick from the <a href="https://hzjken.github.io/enhancing-retrieval-accuracy-in-rag.html" target="_blank" rel="noopener">retrieval post</a>): a small LLM classifier reads the question and sends whole-corpus themes to global, specific-entity questions to local. There's also <a href="https://www.microsoft.com/en-us/research/blog/introducing-drift-search-combining-global-and-local-search-methods-to-improve-quality-and-efficiency/" target="_blank" rel="noopener">DRIFT search</a>, a hybrid that blends both so you needn't choose.</p>
+  <p>The strengths are unique: GraphRAG genuinely shines on <strong>global sensemaking</strong> and <strong>multi-hop</strong> questions, and its answers are <strong>traceable</strong> — you can point at the exact entities and edges behind them. Microsoft's paper reports clear wins over vanilla RAG on the <em>comprehensiveness</em> and <em>diversity</em> of answers to whole-corpus questions.</p>
+  <p>But the cost is the real catch, and it comes in a few flavors:</p>
+  <ul class="conslist">
+    <li><b>Expensive to build.</b> An LLM pass to extract entities from every chunk, <em>plus</em> an LLM summary for every community — one <a href="https://arxiv.org/abs/2502.11371" target="_blank" rel="noopener">systematic evaluation</a> clocked indexing at <strong>40–57× the cost</strong> of plain RAG.</li>
+    <li><b>Painful to keep current.</b> Change a document and it ripples. Newer versions do <em>incremental</em> updates — re-extracting only the changed docs — but community detection is a <em>global</em> partition of the graph, so affected communities get re-clustered and re-summarized, and past a threshold it falls back to a full recompute. Still far heavier than upserting one vector in a normal index.</li>
+    <li><b>Only as good as the extraction.</b> The entire graph is built by an LLM reading text, so a weaker model builds a messier graph — and mistakes there quietly poison everything downstream.</li>
+    <li><b>Overkill for simple questions.</b> For a pinpoint fact lookup, all this structure is pure overhead that can even <em>add</em> noise versus plain search.</li>
+  </ul>
+  <p>Which brings us to the honest comparison.</p>
+
+  <!-- ============ 5 · head to head ============ -->
+  <h2><span class="kicker">05 · Head to head</span>Three ways to answer the same question</h2>
+  <p>Let's put all three on the same big-picture question and watch them diverge — <em>"What are the main themes across Nimbus's reports?"</em></p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">SAME QUERY · THREE APPROACHES</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="stack" style="gap:12px;">
+            <div class="lane rag">
+              <div class="lname">Normal RAG</div>
+              <div class="lbody">Embeds the query, grabs the 5 nearest <b>chunks</b> — all from the loudest report. Answers about the March outage as if it were the whole story.</div>
+              <div class="verdict-chip vc-bad">keyhole view ✗</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span><b>Normal RAG.</b> Top-k similarity has no notion of "the whole corpus." It returns a few near chunks, which cluster around one loud topic — so the summary is narrow and misses everything else.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="stack" style="gap:12px;">
+            <div class="lane rag" style="opacity:.5;">
+              <div class="lname">Normal RAG</div>
+              <div class="lbody">5 nearest chunks, one topic.</div>
+              <div class="verdict-chip vc-bad">keyhole ✗</div>
+            </div>
+            <div class="lane raptor">
+              <div class="lname">RAPTOR</div>
+              <div class="lbody">The collapsed tree surfaces a <b>mid-level summary node</b> that already aggregates several reports — so the answer covers more ground, drawn from pre-built summaries.</div>
+              <div class="verdict-chip vc-ok">decent synthesis ✓</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span><b>RAPTOR.</b> Because summary nodes sit in the same index, the query lands on one that already blends multiple reports. A solid big-picture answer — though it's still whichever summary is <em>most similar</em>, so a theme with no close-matching summary can slip through.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="stack" style="gap:12px;">
+            <div class="lane rag" style="opacity:.5;">
+              <div class="lname">Normal RAG</div>
+              <div class="lbody">5 nearest chunks, one topic.</div>
+              <div class="verdict-chip vc-bad">keyhole ✗</div>
+            </div>
+            <div class="lane raptor" style="opacity:.5;">
+              <div class="lname">RAPTOR</div>
+              <div class="lbody">One best-matching summary node.</div>
+              <div class="verdict-chip vc-ok">decent ✓</div>
+            </div>
+            <div class="lane graph">
+              <div class="lname">GraphRAG</div>
+              <div class="lbody">Map-reduce over <b>every</b> community report — reliability <em>and</em> revenue ops both surface, each traceable to its entities. Nothing is left unconsulted.</div>
+              <div class="verdict-chip vc-good">comprehensive ✓</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span><b>GraphRAG.</b> Global search touches every community by construction, so distinct themes all make it into the answer — the most complete and diverse of the three. The price is the expensive graph you had to build first.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="stack" style="gap:10px; width:100%; max-width:640px;">
+            <div class="lane rag"><div class="lname">Normal RAG</div><div class="lbody"><b>Best at:</b> pinpoint fact lookup. <b>Weak at:</b> anything that spans the corpus.</div><div class="verdict-chip vc-ok">cheapest</div></div>
+            <div class="lane raptor"><div class="lname">RAPTOR</div><div class="lbody"><b>Best at:</b> summarizing &amp; multi-level questions over documents. <b>Weak at:</b> linking specific entities.</div><div class="verdict-chip vc-ok">mid cost</div></div>
+            <div class="lane graph"><div class="lname">GraphRAG</div><div class="lbody"><b>Best at:</b> global sensemaking &amp; multi-hop across sources. <b>Weak at:</b> cost, updates, simple lookups.</div><div class="verdict-chip vc-bad">priciest</div></div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">4</span><b>The takeaway.</b> There's no winner — they climb a ladder of <em>power vs. cost</em>. More structure buys better answers on hard, holistic questions, and charges you for it at indexing time. Match the tool to the question you actually get.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <div class="note"><b>They stack, too.</b> These aren't mutually exclusive with the basics — or each other. GraphRAG still chunks and embeds the source text underneath (its local search retrieves those chunks), and plenty of production systems run hybrid search as the default and route only the genuinely global questions to a RAPTOR or GraphRAG index. Start flat; add structure where you can name the question it's failing on.</div>
+
+  <!-- ============ 6 · wrap ============ -->
+  <h2><span class="kicker">06 · Wrapping up</span>So what should I actually reach for?</h2>
+  <p>Both techniques exist for the same reason — flat chunks lose the big picture — but they buy it back differently: RAPTOR pre-computes <em>summaries</em> so no question lacks a synthesis; GraphRAG pre-computes <em>relationships</em> so no connection is invisible. Here's the cheat sheet:</p>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th>Approach</th><th>Adds</th><th>Pros</th><th>Cons</th><th>Reach for it when…</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Normal RAG</td>
+          <td><span class="problem-tag p-flat">flat chunks</span></td>
+          <td>Cheap, fast, simple; instant to update; strong on pinpoint lookups.</td>
+          <td>No big-picture; can't connect dots across documents.</td>
+          <td>Questions are answerable by a single passage — most FAQ/support/doc search.</td>
+        </tr>
+        <tr>
+          <td>RAPTOR</td>
+          <td><span class="problem-tag p-tree">summary tree</span></td>
+          <td>Big-picture answers at every abstraction level; cheap add-on to a vector pipeline; keeps detail leaves too.</td>
+          <td>An LLM summary per cluster at index time; summaries can lose detail; still pure similarity, no explicit relations.</td>
+          <td>Long documents and thematic/summarization questions — books, papers, reports.</td>
+        </tr>
+        <tr>
+          <td>GraphRAG</td>
+          <td><span class="problem-tag p-graph">knowledge graph</span></td>
+          <td>Global sensemaking + multi-hop reasoning; traceable, explainable answers; consults the whole corpus.</td>
+          <td>Very expensive to build (LLM per chunk + per community); slow to update; overkill &amp; noisy on simple lookups; quality hinges on extraction.</td>
+          <td>Whole-corpus "what are the themes / how does it all connect" questions over a large, static corpus.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>My honest advice mirrors the last two posts: <strong>start with the cheapest thing that works</strong>. Hybrid search plus a reranker answers most questions, and it costs almost nothing. Only when you can point at the exact questions it's failing on — the sweeping "summarize everything" ones, or the "how do these connect" ones — is it worth paying for a summary tree or a knowledge graph. The structure is powerful, but you pay for it up front, every time the corpus changes.</p>
+  <p>The through-line across all of this: RAG quality is mostly about <em>giving the model the right shape of context</em>. Flat chunks are one shape. A tree of summaries is another. A graph of relationships is a third. Pick the shape your questions actually need.</p>
+
+  <p class="muted" style="font-size:14px; margin-top:36px;">Thanks for reading, and hope you got something out of it.</p>
+
+</div>
+
+<script>
+/* ---- keep the embedded blog in sync with the site's light/dark toggle ---- */
+(function(){
+  var root = document.documentElement;
+  try{
+    var saved = localStorage.getItem('kh-theme');
+    root.setAttribute('data-theme', saved || 'light');
+  }catch(e){}
+  window.addEventListener('storage', function(e){
+    if(e.key === 'kh-theme') root.setAttribute('data-theme', e.newValue || 'light');
+  });
+})();
+
+/* ---- tell the parent page how tall this embed is, so the iframe never clips ---- */
+function reportHeight(){
+  var h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+  if(h <= 0) return;
+  try{ if(window.frameElement){ window.frameElement.style.height = h + 'px'; } }catch(e){}
+  try{ if(window.parent && window.parent !== window){ window.parent.postMessage({type:'kh-embed-height', height:h}, '*'); } }catch(e){}
+}
+window.addEventListener('load', reportHeight);
+window.addEventListener('resize', reportHeight);
+[100,400,900,1600].forEach(function(t){ setTimeout(reportHeight, t); });
+
+/* ---- reusable stepper ---- */
+document.querySelectorAll('[data-stepper]').forEach(function(sp){
+  var steps = Array.prototype.slice.call(sp.querySelectorAll('.step'));
+  if(!steps.length) return;
+  var dotsWrap = sp.querySelector('.dots');
+  var counter = sp.querySelector('.counter');
+  var i = 0;
+
+  steps.forEach(function(_, idx){
+    var d = document.createElement('button');
+    d.className = 'dot'; d.type = 'button';
+    d.setAttribute('aria-label', 'Go to step ' + (idx+1));
+    d.addEventListener('click', function(){ go(idx); });
+    dotsWrap.appendChild(d);
+  });
+  var dots = Array.prototype.slice.call(dotsWrap.children);
+
+  function go(n){
+    i = Math.max(0, Math.min(steps.length-1, n));
+    steps.forEach(function(s, idx){ s.classList.toggle('active', idx===i); });
+    dots.forEach(function(d, idx){ d.classList.toggle('on', idx===i); });
+    if(counter) counter.textContent = 'Step ' + (i+1) + ' / ' + steps.length;
+    reportHeight();
+  }
+  sp.tabIndex = 0;
+  sp.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowLeft'){ go(i-1); e.preventDefault(); }
+    else if(e.key === 'ArrowRight'){ go(i+1); e.preventDefault(); }
+  });
+  go(0);
+});
+</script>
+</body>
+</html>
