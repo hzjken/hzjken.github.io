@@ -228,3 +228,4 @@ vendor/
 .DS_Store
 embeds/
 .claude/
+*.html
