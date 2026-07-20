@@ -148,6 +148,7 @@ def fmt_month(s):
 
 
 def read_min(text):
+    text = re.sub(r"<(style|script)\b[^>]*>.*?</\1>", " ", text, flags=re.DOTALL | re.I)
     words = len(re.sub(r"<[^>]+>", " ", text).split())
     return max(1, round(words / 200))
 
