@@ -1,0 +1,951 @@
+<!--
+title: No Vectors at All: PageIndex and Reasoning-Based RAG
+date: 2026-07-20
+tags: RAG, PageIndex, Retrieval, Reasoning
+description: RAPTOR and GraphRAG added structure but kept the vector core. PageIndex deletes it — no embeddings, no chunking, no vector DB. Instead it turns a document into its own table of contents and lets an LLM reason about where to look. A visual, step-by-step walkthrough, and how it stacks up against RAPTOR and GraphRAG.
+-->
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>No Vectors at All: PageIndex and Reasoning-Based RAG</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- theme tokens (mirrors the site) ---------- */
+:root{
+  --bg:#fafafa; --surface:#ffffff; --panel:#f2f3f5;
+  --fg:#101318; --muted:#5a616d; --faint:#8b93a1;
+  --border:#e6e8ec; --accent:#2563eb; --accent-soft:#e6effb;
+  --c1:#16a34a; --c2:#2563eb; --c3:#0d9488; --c4:#ea580c; --c5:#7c3aed;
+  --cn:#b6bcc6; --cw:#ffffff; --cw-bd:#cfd4dc;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;
+  --display:'Space Grotesk',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+html[data-theme="dark"]{
+  --bg:#0b0d11; --surface:#12151b; --panel:#161a21;
+  --fg:#e9ebef; --muted:#949bab; --faint:#6c7686;
+  --border:#222732; --accent:#60a5fa; --accent-soft:#16223c;
+  --c1:#22c55e; --c2:#3b82f6; --c3:#2dd4bf; --c4:#f97316; --c5:#a78bfa;
+  --cn:#454b57; --cw:#e8ecf2; --cw-bd:#aeb6c2;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;}
+body{
+  background:var(--bg); color:var(--fg);
+  font-family:var(--sans); line-height:1.62; font-size:16.5px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:880px; margin:0 auto; padding:8px 20px 60px;}
+
+/* ---------- typography ---------- */
+h2{font-family:var(--display); font-weight:600; font-size:26px; line-height:1.2;
+   margin:52px 0 6px; letter-spacing:-.2px;}
+h2 .kicker{display:block; font-family:var(--mono); font-size:12.5px; font-weight:500;
+   letter-spacing:1.2px; text-transform:uppercase; color:var(--accent); margin-bottom:8px;}
+h3{font-family:var(--display); font-weight:600; font-size:19px; margin:30px 0 4px;}
+p{margin:12px 0;}
+a{color:var(--accent);}
+strong{font-weight:600;}
+.lead{font-size:19px; line-height:1.6; color:var(--fg);}
+.muted{color:var(--muted);}
+code{font-family:var(--mono); font-size:.9em; background:var(--panel);
+  border:1px solid var(--border); border-radius:5px; padding:1px 6px;}
+hr{border:none; border-top:1px solid var(--border); margin:44px 0;}
+
+/* ---------- boxes / callouts ---------- */
+.tldr{background:var(--panel); border:1px solid var(--border); border-radius:14px;
+  padding:18px 22px; margin:22px 0 8px;}
+.tldr h4{margin:0 0 6px; font-family:var(--mono); font-size:12.5px; letter-spacing:1px;
+  text-transform:uppercase; color:var(--accent);}
+.tldr p{margin:6px 0;}
+.note{border-left:3px solid var(--accent); background:var(--accent-soft);
+  border-radius:0 10px 10px 0; padding:12px 18px; margin:20px 0; font-size:15.5px;}
+.note b{color:var(--accent);}
+.conslist{margin:14px 0; padding:0; list-style:none;}
+.conslist li{position:relative; padding-left:22px; margin:10px 0; font-size:15.5px; line-height:1.55;}
+.conslist li::before{content:""; position:absolute; left:2px; top:9px; width:7px; height:7px;
+  border-radius:2px; background:var(--c4);}
+.conslist b{color:var(--fg);}
+
+/* ---------- generic diagram shells ---------- */
+.diagram{background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  padding:24px; margin:22px 0;}
+.arrow{display:flex; align-items:center; color:var(--faint); font-size:22px; font-weight:700;}
+
+/* ---------- stepper ---------- */
+.stepper{background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  margin:18px 0 8px; overflow:hidden; outline:none;}
+.stepper:focus-visible{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);}
+.stepper .head{display:flex; align-items:center; justify-content:space-between;
+  padding:12px 18px; border-bottom:1px solid var(--border); background:var(--panel);}
+.stepper .head .ttl{font-family:var(--mono); font-size:12.5px; letter-spacing:.6px; color:var(--muted);}
+.stepper .head .counter{font-family:var(--mono); font-size:12.5px; color:var(--accent); font-weight:500;}
+.stage{position:relative; min-height:380px; padding:26px 24px 6px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;}
+.step{display:none; width:100%;}
+.step.active{display:block; animation:fade .25s ease;}
+@keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
+.stage .viz{display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:14px; min-height:250px;}
+.cap{margin-top:14px; text-align:center; font-size:15px; color:var(--fg);
+  max-width:680px; margin-left:auto; margin-right:auto;}
+.cap .n{display:inline-block; background:var(--accent); color:#fff; font-family:var(--mono);
+  font-size:12px; font-weight:600; border-radius:999px; padding:1px 9px; margin-right:8px;}
+.controls{display:flex; align-items:center; justify-content:center; gap:16px;
+  padding:14px; border-top:1px solid var(--border); background:var(--panel);}
+.dots{display:flex; gap:7px;}
+.dot{width:10px; height:10px; border-radius:50%; padding:0; border:none; cursor:pointer;
+  background:var(--border); transition:.15s;}
+.dot:hover{background:var(--faint);}
+.dot.on{background:var(--accent); transform:scale(1.3);}
+
+/* generic little pieces used inside steps */
+.stack{display:flex; flex-direction:column; gap:10px; align-items:center;}
+.pill{background:var(--panel); border:1px solid var(--border); border-radius:10px;
+  padding:8px 14px; font-size:13.5px; max-width:520px; text-align:center;}
+.pill.hl{border-color:var(--accent); background:var(--accent-soft);}
+.pill.mono{font-family:var(--mono); font-size:12.5px;}
+.row{display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap;}
+.vec{display:flex; gap:5px; align-items:center;}
+.vec i{width:9px; height:20px; border-radius:2px; background:var(--accent); opacity:.8;}
+.strike{position:relative;}
+.strike::after{content:""; position:absolute; left:-4px; right:-4px; top:50%; height:2px;
+  background:var(--c4); transform:rotate(-8deg);}
+
+/* ---------- split layout (input → process → output) ---------- */
+.split{display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; width:100%;}
+.split .mid{display:flex; flex-direction:column; align-items:center; gap:6px; flex:0 0 auto;}
+.split .mid .arrow2{font-size:22px; font-weight:700; line-height:1; color:var(--faint);}
+.split .mid .midlbl{font-family:var(--mono); font-size:10px; letter-spacing:.5px; color:var(--faint);
+  text-align:center; line-height:1.35;}
+@media(max-width:620px){ .split .mid .arrow2{transform:rotate(90deg);} }
+.scol{flex:0 1 auto; text-align:left; min-width:0;}
+.ar{color:var(--faint); font-size:22px; font-weight:700; flex:0 0 auto; line-height:1;}
+@media(max-width:620px){ .ar{transform:rotate(90deg);} }
+.blbl{font-family:var(--mono); font-size:10px; color:var(--muted); margin-bottom:5px;}
+
+/* small doc card */
+.sdoc{background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:13px 15px; box-shadow:0 1px 4px rgba(0,0,0,.06); font-size:12px;}
+.sdoc .dt{font-family:var(--display); font-weight:600; font-size:13.5px; margin-bottom:7px;}
+.sdoc .dh{font-weight:600; color:var(--fg); margin:9px 0 2px;}
+.sdoc .db{color:var(--muted); line-height:1.45;}
+.hlt{background:var(--accent-soft); color:var(--fg); border-radius:3px; padding:0 3px;}
+
+/* wordmark / engine / llm chips */
+.llmchip{display:inline-flex; align-items:center; gap:6px; font-family:var(--display); font-weight:600;
+  font-size:13px; padding:7px 13px; border-radius:9px; border:1px solid var(--c2);
+  background:var(--accent-soft); color:var(--c2);}
+.prompt{font-family:var(--mono); font-size:10px; line-height:1.5; text-align:left; color:var(--muted);
+  background:var(--surface); border:1px dashed var(--border); border-radius:8px; padding:8px 10px;
+  max-width:240px; margin-top:9px;}
+.prompt b{color:var(--fg);}
+.jsonout{font-family:var(--mono); font-size:10.5px; line-height:1.5; text-align:left; color:var(--fg);
+  background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px 12px;
+  white-space:pre-wrap; margin:0;}
+.jsonout .jw{color:var(--faint);}
+.jsonout .jk{color:var(--accent);}
+.jsonout .jg{color:var(--c1);}
+
+/* ---------- ranked result lists ---------- */
+.rlist{display:flex; flex-direction:column; gap:6px; width:100%; max-width:340px;}
+.ritem{display:flex; align-items:center; gap:9px; background:var(--surface); border:1px solid var(--border);
+  border-radius:9px; padding:7px 10px; font-size:12px; transition:.2s;}
+.ritem .rank{font-family:var(--mono); font-size:11px; color:var(--faint); width:16px; text-align:right; flex:0 0 auto;}
+.ritem .rlabel{flex:1 1 auto; color:var(--muted); line-height:1.3; min-width:0;}
+.ritem.hit{border-color:var(--accent); background:var(--accent-soft);}
+.ritem.hit .rlabel{color:var(--fg); font-weight:600;}
+.ritem.dim{opacity:.45;}
+.cbar{width:8px; height:20px; border-radius:3px; flex:0 0 auto;}
+.cbar.c1{background:var(--c1);} .cbar.c2{background:var(--c2);} .cbar.c3{background:var(--c3);}
+.cbar.c4{background:var(--c4);} .cbar.c5{background:var(--c5);} .cbar.cn{background:var(--cn);}
+
+/* ---------- document outline / TOC tree ---------- */
+.toc{width:100%; max-width:430px; display:flex; flex-direction:column; gap:5px; text-align:left;}
+.tocrow{display:flex; align-items:center; gap:9px; padding:7px 11px; border:1px solid var(--border);
+  border-radius:9px; background:var(--surface); flex-wrap:wrap; transition:.2s;}
+.tocrow .nid{font-family:var(--mono); font-size:9.5px; color:var(--faint); flex:0 0 auto;}
+.tocrow .ttl2{font-family:var(--display); font-weight:600; font-size:13px; color:var(--fg); flex:1 1 auto; min-width:0;}
+.tocrow .pg{font-family:var(--mono); font-size:9.5px; color:var(--faint); flex:0 0 auto;}
+.tocrow .sum2{font-family:var(--sans); font-size:11px; color:var(--muted); flex:1 1 100%; line-height:1.4; padding-left:17px;}
+.tocrow.child{margin-left:24px;}
+.tocrow.child .ttl2{font-weight:500; font-size:12px;}
+.tocrow.sel{border-color:var(--accent); background:var(--accent-soft);}
+.tocrow.sel .ttl2{color:var(--fg);}
+.tocrow.faded{opacity:.4;}
+
+/* ---------- RAPTOR mini-tree (for the comparison) ---------- */
+.rtree{display:flex; flex-direction:column; align-items:center; gap:7px; width:100%;}
+.rlevel{display:flex; gap:9px; justify-content:center; flex-wrap:wrap; align-items:stretch;}
+.tnode{font-family:var(--mono); font-size:10.5px; padding:7px 9px; border-radius:8px;
+  border:1px solid var(--cn); background:var(--surface); color:var(--muted);
+  max-width:150px; line-height:1.32; text-align:center;}
+.tnode.sum{border-width:1.5px; font-weight:500;}
+.tnode.n1{border-color:var(--c1); color:var(--c1);}
+.tnode.n2{border-color:var(--c2); color:var(--c2);}
+.tnode.n3{border-color:var(--c4); color:var(--c4);}
+.tnode.root{border-color:var(--c5); color:var(--c5); font-weight:600; max-width:260px;}
+.levlbl{font-family:var(--mono); font-size:9.5px; letter-spacing:.6px; text-transform:uppercase;
+  color:var(--faint); text-align:center;}
+.upband{font-family:var(--mono); font-size:10px; letter-spacing:.4px; color:var(--faint);
+  display:flex; align-items:center; gap:7px; justify-content:center;}
+.upband .up{color:var(--c3); font-weight:700; font-size:15px;}
+
+/* ---------- value-guided search tree ---------- */
+.vtree{display:flex; gap:18px; justify-content:center; align-items:flex-start; flex-wrap:wrap;}
+.vbranch{display:flex; flex-direction:column; align-items:center;}
+.vconn{width:2px; height:13px; background:var(--border);}
+.vkids{display:flex; flex-direction:column; gap:6px;}
+.tnode .vb{display:block; margin-top:3px; font-family:var(--mono); font-size:9px; letter-spacing:.3px; color:var(--faint);}
+.tnode.hi{border-color:var(--c1); background:var(--accent-soft); color:var(--fg); font-weight:600;}
+.tnode.hi .vb{color:var(--c1); font-weight:700;}
+.tnode.lo .vb{color:var(--c4);}
+.tnode.pruned{opacity:.32;}
+.tnode.pick{outline:2px solid var(--accent); outline-offset:2px; background:var(--accent-soft);
+  color:var(--fg); font-weight:600;}
+.tnode.pick .vb{color:var(--accent); font-weight:700;}
+
+/* ---------- tag chips + edged corpus tree (SVG) ---------- */
+.tag{display:inline-block; font-family:var(--mono); font-size:9.5px; padding:2px 7px; border-radius:999px;
+  border:1px solid var(--accent); color:var(--accent); background:var(--accent-soft); white-space:nowrap;}
+.tag.g{border-color:var(--c1); color:var(--c1); background:transparent;}
+.stree{max-width:100%; height:auto; display:block; margin:0 auto;}
+.stree line{stroke:var(--faint); stroke-width:1.4; opacity:.5;}
+.stree line.acc{stroke:var(--accent); stroke-width:1.7; opacity:.85;}
+.stree line.on{stroke:var(--accent); stroke-width:2.4; opacity:.95;}
+.stree line.mute{opacity:.22;}
+.stree g rect{fill:var(--surface); stroke:var(--cn); stroke-width:1.3;}
+.stree g text{font-family:var(--mono); font-size:10px; fill:var(--fg);}
+.stree g.root rect{fill:var(--panel); stroke:var(--c5); stroke-width:1.6;}
+.stree g.hi rect{stroke:var(--c1); stroke-width:1.7; fill:var(--accent-soft);}
+.stree g.pick rect{stroke:var(--accent); stroke-width:2.4; fill:var(--accent-soft);}
+.stree g.lo{opacity:.5;}
+.stree g.pruned{opacity:.26;}
+.streelbl{font-family:var(--mono); font-size:9.5px; letter-spacing:.5px; text-transform:uppercase; color:var(--faint);}
+
+/* ---------- head-to-head lanes ---------- */
+.lane{display:flex; align-items:center; gap:12px; width:100%; max-width:660px; margin:0 auto;
+  border:1px solid var(--border); border-radius:12px; padding:11px 14px; background:var(--surface);}
+.lane .lname{font-family:var(--display); font-weight:600; font-size:13px; width:92px; flex:0 0 auto; line-height:1.25;}
+.lane .lbody{flex:1 1 auto; font-size:12.5px; color:var(--muted); line-height:1.4;}
+.lane .verdict-chip{font-family:var(--mono); font-size:10px; padding:2px 8px; border-radius:999px;
+  flex:0 0 auto; white-space:nowrap;}
+.vc-bad{color:var(--c4); border:1px solid var(--c4);}
+.vc-ok{color:var(--c3); border:1px solid var(--c3);}
+.vc-good{color:var(--c1); border:1px solid var(--c1);}
+.lane.rag{border-left:3px solid var(--cn);}
+.lane.raptor{border-left:3px solid var(--c3);}
+.lane.graph{border-left:3px solid var(--c5);}
+.lane.pageindex{border-left:3px solid var(--accent);}
+
+/* ---------- summary table ---------- */
+.tblwrap{overflow-x:auto; margin:20px 0;}
+table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:840px;}
+th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--border); vertical-align:top;}
+th{font-family:var(--mono); font-size:12px; letter-spacing:.5px; text-transform:uppercase;
+   color:var(--muted); background:var(--panel);}
+tr td:first-child{font-weight:600; white-space:nowrap;}
+.problem-tag{display:inline-block; font-family:var(--mono); font-size:11px; padding:2px 8px;
+  border-radius:999px; border:1px solid var(--border); white-space:nowrap;}
+.p-flat{color:var(--cn); border-color:var(--cn);}
+.p-tree{color:var(--c3); border-color:var(--c3);}
+.p-graph{color:var(--c5); border-color:var(--c5);}
+.p-page{color:var(--accent); border-color:var(--accent);}
+
+/* ---------- section divider ---------- */
+.camp{margin:56px 0 10px; padding-bottom:10px; border-bottom:1px solid var(--border);}
+.camp .eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:1.6px; text-transform:uppercase;}
+.camp .ctitle{font-family:var(--display); font-weight:600; font-size:22px; margin-top:4px; letter-spacing:-.2px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ 1 ============ -->
+  <h2><span class="kicker">01 · The pitch</span>PageIndex throws away the vector database</h2>
+  <p>My <a href="https://hzjken.github.io/graphrag-and-raptor.html" target="_blank" rel="noopener">last post</a> walked a progression: plain RAG, then RAPTOR, then GraphRAG — each one adding more structure on top of the last. But look closely and the <em>foundation</em> never moved. All of them share the same underlying engine: chop text into chunks, turn them into vectors, match by similarity.</p>
+  <p><strong>PageIndex</strong> — from <a href="https://pageindex.ai/" target="_blank" rel="noopener">Vectify AI</a>, open-sourced in September 2025 — asks a more heretical question: what if we skip that engine? Its pitch is right on the tin: <strong>no embeddings, no chunking, no vector DB.</strong> Instead of shredding your document into a pile of vectors, it turns it into something you already understand — a <strong>table of contents</strong> — and instead of matching a query by similarity, it hands that table of contents to an LLM and lets it <em>reason</em> about where to look, the way you'd flip through a report yourself.</p>
+  
+  <!-- ============ 2 ============ -->
+  <h2><span class="kicker">02 · The bet</span>Similarity isn't the same as relevance</h2>
+  <p>The whole case for PageIndex fits in one line the authors keep repeating: <strong>similarity ≠ relevance.</strong> Cosine search is very good at finding text that <em>looks like</em> your query. But the passage that looks most like the question often isn't the one that answers it — especially in long, dense professional documents, the kind where every sentence is packed with domain terms.</p>
+  <p>Take a 180-page annual report and ask <em>"what's the methodology behind the goodwill impairment?"</em> The paragraph you need might read <em>"see Appendix G for the impairment methodology"</em> — which shares almost no words with a chunk that actually explains it, so similarity sails right past the pointer. Three of the failure modes PageIndex calls out hide in questions like this:</p>
+  <div class="tldr">
+    <p><strong style="color:var(--c4)">1 · Chunk boundaries.</strong> Fixed token length cuts slice a table or an argument in half, so no single chunk holds the whole thought.</p>
+    <p><strong style="color:var(--c4)">2 · Cross-references.</strong> "See Appendix G", "as noted in Section 4.2" — the answer lives somewhere a keyword match will never reach.</p>
+    <p><strong style="color:var(--c4)">3 · Intent vs. content.</strong> A query expresses what you <em>want</em>, not the words of the answer. "Is Nimbus's revenue at risk?" won't cosine-match the risk section, which never brags about revenue.</p>
+  </div>
+  <p>Here's the thing: <em>you</em> as human don't have this problem. Handed a 180-page report, you don't scan all 180 pages for lexical overlap. You open the table of contents, jump to <em>"Risk Factors,"</em> read it, and if it says "see Appendix G" you follow the pointer. PageIndex's entire bet is that an LLM can do exactly this — <strong>navigate a document by its structure and reason about where the answer lives</strong> — and that beats similarity match.</p>
+
+  <!-- ============ 3 · BUILD ============ -->
+  <div class="camp">
+    <div class="eyebrow" style="color:var(--accent)">How it works · Phase 1</div>
+    <div class="ctitle">Building the tree — a table of contents, as JSON</div>
+  </div>
+  <p>PageIndex has two phases, like GraphRAG: an <strong>indexing</strong> phase that reads a document and turns it into a tree, and a <strong>query</strong> phase that reasons over that tree. The index is not a vector store — it's a plain JSON file that mirrors the document's own outline. Here's how it gets built (following the open-source <a href="https://github.com/VectifyAI/PageIndex" target="_blank" rel="noopener">repo</a>, MIT-licensed):</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">PAGEINDEX · BUILDING THE TREE</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:250px;">
+              <div class="blbl">the document · one long PDF</div>
+              <div class="sdoc">
+                <div class="dt">Nimbus FY2025 Annual Report</div>
+                <div class="db">180 pages — letter to shareholders, business overview, MD&amp;A, risk factors, financial statements, appendices…</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">what normal<br>RAG does first</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:230px;">
+              <div class="blbl">vector RAG: shred into ~700 chunks + embed</div>
+              <div class="row" style="justify-content:flex-start; gap:5px;">
+                <span class="strike"><span class="vec"><i></i><i></i><i></i></span></span>
+                <span class="strike"><span class="vec"><i></i><i></i><i></i></span></span>
+                <span class="strike"><span class="vec"><i></i><i></i><i></i></span></span>
+              </div>
+              <div class="blbl" style="margin-top:8px; color:var(--c4);">PageIndex does none of this ✗</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span><b>Start by <em>not</em> shredding.</b> Where vector RAG's first move is to cut the PDF into hundreds of fixed-size chunks and embed each one, PageIndex does neither. It keeps the document whole and starts the way a person would — by reading its structure.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:200px;">
+              <div class="blbl">scan the opening pages</div>
+              <div class="sdoc">
+                <div class="dt">Contents</div>
+                <div class="db" style="font-family:var(--mono); font-size:11px; line-height:1.7;">Business Overview ...... 8<br>MD&amp;A ...... 24<br>Risk Factors ...... 40<br>Financial Statements ... 60</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt">Find the <b>table of contents</b>. Where headings are missing, infer the section boundaries.</div>
+            </div>
+            <div class="scol" style="max-width:230px;">
+              <div class="blbl">a detected hierarchy of sections</div>
+              <div class="toc" style="max-width:230px;">
+                <div class="tocrow"><span class="cbar c1"></span><span class="ttl2">Business Overview</span></div>
+                <div class="tocrow"><span class="cbar c2"></span><span class="ttl2">MD&amp;A</span></div>
+                <div class="tocrow"><span class="cbar c4"></span><span class="ttl2">Risk Factors</span></div>
+                <div class="tocrow"><span class="cbar c5"></span><span class="ttl2">Financial Statements</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span><b>Detect the structure.</b> An LLM scans the opening pages (default: first 20) for a real table of contents. If one exists, it's used; where structure is missing, the model infers the section boundaries itself from the content (see details in below note).</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:210px;">
+              <div class="blbl">the raw pages of one section</div>
+              <div class="sdoc">
+                <div class="dt">Risk Factors · pp. 40–59</div>
+                <div class="db">"Nimbus faces risks to service reliability… In March, an expired TLS certificate took the EU region offline for 3 hours, triggering SLA credits that reduced Q1 revenue…"</div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt">Summarize this section in one line.</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:250px;">
+              <div class="blbl">each section → a node with a summary</div>
+              <div class="toc" style="max-width:250px;">
+                <div class="tocrow"><span class="cbar c4"></span><span class="ttl2">Risk Factors</span><span class="pg">pp.40–59</span>
+                  <span class="sum2">Principal risks: reliability, security, regulatory exposure.</span></div>
+                <div class="tocrow child"><span class="cbar c4"></span><span class="ttl2">Security &amp; Outages</span><span class="pg">pp.41–47</span>
+                  <span class="sum2">The March EU outage and its hit to Q1 revenue.</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span><b>Build nodes, recursively.</b> Every section and subsection becomes a <b>node</b>, with its page range recorded, and an LLM writes a one-line summary for each. Nodes are capped by size (defaults: ≤10 pages / ≤20k tokens), so a fat section splits into child nodes — giving a tree that's shallow at the top and detailed toward the leaves.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:flex-start;">
+            <div class="scol" style="max-width:290px;">
+              <div class="blbl">the emitted index · plain JSON</div>
+              <div class="jsonout">{
+  <span class="jk">"title"</span>: <span class="jg">"Risk Factors"</span>,
+  <span class="jk">"node_id"</span>: <span class="jg">"0040"</span>,
+  <span class="jk">"start_index"</span>: 40,
+  <span class="jk">"end_index"</span>: 59,
+  <span class="jk">"summary"</span>: <span class="jg">"Principal risks…"</span>,
+  <span class="jk">"nodes"</span>: [
+    {
+      <span class="jk">"title"</span>: <span class="jg">"Security &amp; Outages"</span>,
+      <span class="jk">"node_id"</span>: <span class="jg">"0041"</span>,
+      <span class="jk">"start_index"</span>: 41,
+      <span class="jk">"end_index"</span>: 47,
+      <span class="jk">"summary"</span>: <span class="jg">"The March EU outage…"</span>
+    }
+  ]
+}</div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">each node_id →<br>its raw pages</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:200px;">
+              <div class="blbl">node_id → node_content</div>
+              <div class="sdoc" style="border-color:var(--accent);">
+                <div class="dt" style="font-family:var(--mono); font-size:11px; color:var(--accent);">0041</div>
+                <div class="db">the full, unshredded text of pages 41–47</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">4</span><b>The index is a JSON tree.</b> The whole document becomes a nested tree of <code>title</code> / <code>node_id</code> / page range / <code>summary</code> / child <code>nodes</code> — human-readable, no vector database anywhere. Each <code>node_id</code> maps straight back to its raw page text, so once you've picked a node you get the <em>real</em> content, never a lossy summary.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <div class="note"><b>But what if the document has no contents page?</b> Plenty don't — a scanned contract, a bare report. Then PageIndex builds the outline from the body text itself. It stamps every page with a hidden marker, walks through the document in ~20k-token groups, and asks the LLM to emit a running hierarchical list — for each section, its <em>number</em> (1, 1.1, 1.2…), its <em>verbatim title</em>, and the <em>page marker where it starts</em> — extending that list group by group until the whole file is covered. Then a self-check: for each section it asks the model <em>"does this title actually start on that page?"</em>, and any it gets wrong are re-located within a bounded page range (up to three tries). Each section's <em>end</em> page is simply wherever the next one begins. It's the same thing you'd do skimming an untitled report — notice where the topic turns over, name it, mark the page — just written down as a tree. (Contrast the easy case: when a real contents page <em>is</em> printed, PageIndex mostly trusts it, and only works out the offset between the printed page numbers and the physical ones.)</div>
+  <p>That's the whole index: a tree that <em>is</em> the document's outline, with a summary hung on each branch. Notice what you didn't do — no embedding model, no chunk-size tuning, no vector store to stand up. And notice what you can do that you couldn't before: read the index and understand it at a glance. Now let's use it.</p>
+
+  <!-- ============ 4 · RETRIEVE ============ -->
+  <div class="camp">
+    <div class="eyebrow" style="color:var(--accent)">How it works · Phase 2</div>
+    <div class="ctitle">Retrieval by tree search — the LLM flips through the contents</div>
+  </div>
+  <p>This is where PageIndex differs the most from everything in the last post. There's no query embedding, no cosine, no top-k. Retrieval is <strong>LLM tree search</strong>: the model is handed the whole tree and reasons its way to the right nodes, exactly like a person skimming a table of contents. Take <em>"What caused the EU outage, and how did it hit revenue?"</em></p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">PAGEINDEX · TREE SEARCH</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:250px;">
+              <div class="blbl">input · question + the whole tree</div>
+              <div class="pill hl" style="margin:0 0 8px;">"What caused the EU outage, and how did it hit revenue?"</div>
+              <div class="toc" style="max-width:250px;">
+                <div class="tocrow"><span class="cbar c1"></span><span class="ttl2">Business Overview</span><span class="pg">8</span></div>
+                <div class="tocrow"><span class="cbar c2"></span><span class="ttl2">MD&amp;A</span><span class="pg">24</span></div>
+                <div class="tocrow child"><span class="cbar c2"></span><span class="ttl2">Revenue</span><span class="pg">25</span></div>
+                <div class="tocrow"><span class="cbar c4"></span><span class="ttl2">Risk Factors</span><span class="pg">40</span></div>
+                <div class="tocrow child"><span class="cbar c4"></span><span class="ttl2">Security &amp; Outages</span><span class="pg">41</span></div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt" style="max-width:170px;">Here is the document tree. Find <b>all nodes</b> likely to contain the answer.</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:225px;">
+              <div class="blbl">output · structured JSON</div>
+              <div class="jsonout">{
+  <span class="jk">"thinking"</span>: <span class="jg">"Outage → node 0041;
+   revenue effect → node 0025;
+   Business Overview is background,
+   skip it."</span>,
+  <span class="jk">"node_list"</span>: [<span class="jg">"0041"</span>, <span class="jg">"0025"</span>]
+}</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span><b>The whole tree goes into the prompt.</b> No embedding, no vector search. The entire table of contents — every title, summary, and <code>node_id</code> — is small enough to fit in the context window, so it's handed to the LLM whole, alongside the question. Out comes JSON: a reasoning trace plus the list of <code>node_id</code>s to open.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:225px;">
+              <div class="blbl">input · the LLM's JSON</div>
+              <div class="jsonout">{
+  <span class="jk">"thinking"</span>: <span class="jg">"Outage → node 0041;
+   revenue effect → node 0025;
+   Business Overview is background,
+   skip it."</span>,
+  <span class="jk">"node_list"</span>: [<span class="jg">"0041"</span>, <span class="jg">"0025"</span>]
+}</div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">map node_list<br>onto the tree</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:205px;">
+              <div class="blbl">output · the picked sections</div>
+              <div class="toc" style="max-width:205px;">
+                <div class="tocrow faded"><span class="cbar c1"></span><span class="ttl2">Business Overview</span></div>
+                <div class="tocrow faded"><span class="cbar c2"></span><span class="ttl2">MD&amp;A</span></div>
+                <div class="tocrow child sel"><span class="cbar c2"></span><span class="ttl2">Revenue</span><span class="pg">0025</span></div>
+                <div class="tocrow faded"><span class="cbar c4"></span><span class="ttl2">Risk Factors</span></div>
+                <div class="tocrow child sel"><span class="cbar c4"></span><span class="ttl2">Security &amp; Outages</span><span class="pg">0041</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span><b>Reasoning you can read.</b> The <code>node_list</code> is the pick; the <code>thinking</code> trace says why each section made the cut and why the rest were skipped. Mapped back onto the tree, two sections light up — and unlike an opaque cosine score, you can audit the call.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:195px;">
+              <div class="blbl">input · the picked sections</div>
+              <div class="toc" style="max-width:195px;">
+                <div class="tocrow child sel"><span class="cbar c4"></span><span class="ttl2">Security &amp; Outages</span><span class="pg">0041</span></div>
+                <div class="tocrow child sel"><span class="cbar c2"></span><span class="ttl2">Revenue</span><span class="pg">0025</span></div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="midlbl">node_id →<br>node_content</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:270px;">
+              <div class="blbl">output · the real page text — no summaries, no half-chunks</div>
+              <div class="stack" style="gap:7px; align-items:stretch;">
+                <div class="sdoc" style="border-color:var(--c4);">
+                  <div class="dt" style="font-size:12px;">0041 · Security &amp; Outages · pp.41–47</div>
+                  <div class="db">"…an expired TLS certificate took the EU region offline for 3 hours…"</div>
+                </div>
+                <div class="sdoc" style="border-color:var(--c2);">
+                  <div class="dt" style="font-size:12px;">0025 · Revenue · p.25</div>
+                  <div class="db">"…Q1 revenue fell 4% on SLA credits tied to the outage…"</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span><b>Pull the real pages.</b> Each picked <code>node_id</code> maps back to its actual page text. PageIndex loads the <em>full</em> content of those sections — not a summary, not a boundary-sliced chunk — so the model answers from complete, in-context passages.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:245px;">
+              <div class="blbl">input · the picked sections' full text</div>
+              <div class="stack" style="gap:7px; align-items:stretch;">
+                <div class="sdoc" style="border-color:var(--c4);">
+                  <div class="dt" style="font-size:12px;">0041 · Security &amp; Outages · pp.41–47</div>
+                  <div class="db">"…an expired TLS certificate took the EU region offline for 3 hours…"</div>
+                </div>
+                <div class="sdoc" style="border-color:var(--c2);">
+                  <div class="dt" style="font-size:12px;">0025 · Revenue · p.25</div>
+                  <div class="db">"…Q1 revenue fell 4% on SLA credits tied to the outage…"</div>
+                </div>
+              </div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="arrow2">→</div>
+            </div>
+            <div class="scol" style="max-width:230px;">
+              <div class="blbl">output · grounded answer, cited to the page</div>
+              <div class="pill hl" style="margin:0;">"An expired TLS certificate took the EU region down for 3 hours <b>(p.41)</b>; the resulting SLA credits cut Q1 revenue by 4% <b>(p.25)</b>."</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">4</span><b>Answer, grounded and cited.</b> Those same sections go to an LLM, which writes the answer citing the exact pages. In the open-source version this is a <em>single pass</em> — one tree-search call picks the nodes, then the answer gets written. Every claim traces to a specific page — a paper trail vector RAG can't produce.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>That flow — <em>hand over the whole tree → reason → pick sections → read → answer</em> — is the whole idea, and it's pure reasoning over structure. No vector ever gets computed at query time.</p>
+  <p>The open-source repo does exactly the single pass above. The hosted product turns that one pick into a genuine <strong>search</strong> — and the model it borrows from is the one behind <a href="https://github.com/VectifyAI/PageIndex" target="_blank" rel="noopener">AlphaGo</a>: a <strong>value-function-guided tree search</strong>. The idea, conceptually:</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">CONCEPT · VALUE-GUIDED TREE SEARCH</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="row" style="margin-bottom:16px;"><span class="blbl" style="margin:0;">query</span><span class="pill hl" style="margin:0; font-size:12.5px;">"What caused the EU outage, and how did it hit revenue?"</span></div>
+          <div class="vtree">
+            <div class="vbranch"><div class="tnode">Business</div></div>
+            <div class="vbranch"><div class="tnode">MD&amp;A</div></div>
+            <div class="vbranch"><div class="tnode">Risk Factors</div></div>
+          </div>
+          <div class="blbl" style="margin-top:18px; text-align:center; color:var(--c4); max-width:420px;">reasoning over every node with a full LLM call — fine for a small tree, wasteful for a deep one</div>
+        </div>
+        <p class="cap"><span class="n">1</span><b>Why search at all?</b> On a small document the single pass we just saw is fine — one LLM call reads the whole tree. But trees get deep, and across a big collection, huge. Running a full LLM reasoning call on <em>every</em> branch to decide what's worth opening gets slow and expensive. So the hosted version searches instead of reading everything.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="row" style="margin-bottom:16px;"><span class="blbl" style="margin:0;">query</span><span class="pill hl" style="margin:0; font-size:12.5px;">"What caused the EU outage, and how did it hit revenue?"</span></div>
+          <div class="vtree">
+            <div class="vbranch"><div class="tnode lo">Business<span class="vb">value 0.1</span></div></div>
+            <div class="vbranch"><div class="tnode hi">MD&amp;A<span class="vb">value 0.8</span></div></div>
+            <div class="vbranch"><div class="tnode hi">Risk Factors<span class="vb">value 0.9</span></div></div>
+          </div>
+          <div class="row" style="margin-top:18px;">
+            <span class="pill mono" style="margin:0; border-color:var(--c3); color:var(--c3);">value function</span>
+            <span class="blbl" style="margin:0;">a cheap score per branch — no full LLM reasoning</span>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span><b>Score each branch cheaply.</b> A lightweight <b>value function</b> rates every branch for how likely it holds the answer — a fast estimate, not an expensive reasoning pass. It's the move behind <b>AlphaGo</b>: judge how promising a position is without playing every game out to the end.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="row" style="margin-bottom:16px;"><span class="blbl" style="margin:0;">query</span><span class="pill hl" style="margin:0; font-size:12.5px;">"What caused the EU outage, and how did it hit revenue?"</span></div>
+          <div class="vtree">
+            <div class="vbranch"><div class="tnode pruned">Business<span class="vb">0.1 · skip</span></div></div>
+            <div class="vbranch">
+              <div class="tnode hi">MD&amp;A<span class="vb">0.8</span></div>
+              <div class="vconn"></div>
+              <div class="vkids">
+                <div class="tnode hi">Revenue<span class="vb">0.8</span></div>
+                <div class="tnode lo">Costs<span class="vb">0.1</span></div>
+              </div>
+            </div>
+            <div class="vbranch">
+              <div class="tnode hi">Risk Factors<span class="vb">0.9</span></div>
+              <div class="vconn"></div>
+              <div class="vkids">
+                <div class="tnode lo">Regulatory<span class="vb">0.2</span></div>
+                <div class="tnode hi">Outages<span class="vb">0.95</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="blbl" style="margin-top:14px; text-align:center;">expensive LLM reasoning spent only inside the high-value branches</div>
+        </div>
+        <p class="cap"><span class="n">3</span><b>Expand the promising branches, skip the rest.</b> The search descends into the high scorers — MD&amp;A and Risk Factors — scoring <em>their</em> children in turn, while the low-value <b>Business</b> branch is pruned untouched. The expensive reasoning goes only where the payoff looks high, not evenly across the whole tree.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="row" style="margin-bottom:16px;"><span class="blbl" style="margin:0;">query</span><span class="pill hl" style="margin:0; font-size:12.5px;">"What caused the EU outage, and how did it hit revenue?"</span></div>
+          <div class="vtree">
+            <div class="vbranch"><div class="tnode pruned">Business</div></div>
+            <div class="vbranch">
+              <div class="tnode">MD&amp;A</div>
+              <div class="vconn"></div>
+              <div class="vkids">
+                <div class="tnode pick">Revenue<span class="vb">picked</span></div>
+                <div class="tnode pruned">Costs</div>
+              </div>
+            </div>
+            <div class="vbranch">
+              <div class="tnode">Risk Factors</div>
+              <div class="vconn"></div>
+              <div class="vkids">
+                <div class="tnode pruned">Regulatory</div>
+                <div class="tnode pick">Outages<span class="vb">picked</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="row" style="margin-top:16px;">
+            <span class="pill mono" style="margin:0; border-color:var(--accent); color:var(--accent);">enough gathered? ✓</span>
+            <span class="ar">→</span>
+            <span class="pill hl" style="margin:0;">grounded answer, cited to the page</span>
+          </div>
+        </div>
+        <p class="cap"><span class="n">4</span><b>Land on the answer, then stop.</b> The best leaves — <b>Revenue</b> and <b>Outages</b> — are the sections pulled for the answer. An agent checks after each round whether it has gathered enough, and once it has, it writes the grounded, cited answer instead of expanding further.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <div class="note"><b>So what actually produces those scores?</b> PageIndex hasn't said — but a rough guess is easy. The most natural fit for a vectorless system: a small, fast LLM that reads only each node's <em>title and one-line summary</em> (never the full pages) and returns a 0–1 score for how likely that section answers the query — so <em>"Risk Factors › Outages"</em> scores high on an outage question, <em>"Costs"</em> scores low. Other plausible forms: a small <b>fine-tuned classifier</b> that outputs each section's <em>probability</em> of being useful to the question (trained on which sections led to good answers — the closest parallel to AlphaGo's value network), or plain title-vs-query similarity. The point is that it's <em>cheap</em> — cheap enough to score every branch, so the pricey full-reasoning read is saved for the few that survive.</div>
+  <p class="muted" style="font-size:14px;">One honest caveat: that's the <em>concept</em>, not an official spec. PageIndex names its production method "value-function-based Monte-Carlo tree search" but <a href="https://docs.pageindex.ai/tutorials/tree-search/llm" target="_blank" rel="noopener">says the mechanics are "coming soon"</a> — so treat the steps above as the general idea it's built on, not their published algorithm.</p>
+
+  <!-- ============ 5 · scaling ============ -->
+  <h2><span class="kicker">05 · Scaling up</span>From one document to a million</h2>
+  <p>Everything so far worked on a single document. But the reason enterprises reach for PageIndex — legal discovery, financial filings, compliance — is <em>corpora</em>: thousands or millions of documents at once. A per-document method runs straight into a wall here: you obviously can't stuff every document's tree into one prompt. PageIndex's answer is its <a href="https://pageindex.ai/blog/pageindex-filesystem" target="_blank" rel="noopener">File System</a> (an Enterprise/Cloud feature, not the open-source repo), and the idea is pleasingly recursive — a <strong>tree of trees</strong>.</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">CONCEPT · TREE OF TREES (THE FILE SYSTEM)</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="stack" style="gap:9px; width:100%; max-width:440px;">
+            <div class="row" style="justify-content:space-between; gap:10px; flex-wrap:nowrap;">
+              <span class="pill mono" style="margin:0; font-size:11px; flex:0 0 auto;">Annual Report</span>
+              <span style="flex:1 1 auto; text-align:right;"><span class="tag">Financials</span> <span class="tag">Risk &amp; Legal</span> <span class="tag">EU</span></span>
+            </div>
+            <div class="row" style="justify-content:space-between; gap:10px; flex-wrap:nowrap;">
+              <span class="pill mono" style="margin:0; font-size:11px; flex:0 0 auto;">Q1 10-Q</span>
+              <span style="flex:1 1 auto; text-align:right;"><span class="tag">Financials</span></span>
+            </div>
+            <div class="row" style="justify-content:space-between; gap:10px; flex-wrap:nowrap;">
+              <span class="pill mono" style="margin:0; font-size:11px; flex:0 0 auto;">MSA Contract</span>
+              <span style="flex:1 1 auto; text-align:right;"><span class="tag">Risk &amp; Legal</span> <span class="tag">EU</span></span>
+            </div>
+          </div>
+          <div class="blbl" style="margin-top:16px; text-align:center;">an LLM reads each document and assigns it tags</div>
+        </div>
+        <p class="cap"><span class="n">1</span><b>Every document gets tags.</b> Phase 1 already gave each document its own table-of-contents tree. Now, as a document is added, an LLM also reads it and labels it with <b>metadata tags</b> — a topic or category, plus fields like vendor, region, or year. The Annual Report comes out tagged <em>Financials</em>, <em>Risk &amp; Legal</em>, and <em>EU</em>; a supplier contract gets <em>Risk &amp; Legal</em> and <em>EU</em>.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <svg class="stree" width="460" height="188" viewBox="0 0 460 188" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="230" y1="34" x2="90" y2="74"/>
+            <line x1="230" y1="34" x2="230" y2="74"/>
+            <line x1="230" y1="34" x2="390" y2="74"/>
+            <line class="acc" x1="90" y1="98" x2="110" y2="146"/>
+            <line class="acc" x1="230" y1="98" x2="110" y2="146"/>
+            <line class="acc" x1="390" y1="98" x2="110" y2="146"/>
+            <line x1="90" y1="98" x2="250" y2="146"/>
+            <line x1="230" y1="98" x2="390" y2="146"/>
+            <line x1="390" y1="98" x2="390" y2="146"/>
+            <g class="root"><rect x="196" y="10" width="68" height="24" rx="7"/><text x="230" y="26" text-anchor="middle">Corpus</text></g>
+            <g><rect x="48" y="74" width="84" height="24" rx="7"/><text x="90" y="90" text-anchor="middle">Financials</text></g>
+            <g><rect x="176" y="74" width="108" height="24" rx="7"/><text x="230" y="90" text-anchor="middle">Risk &amp; Legal</text></g>
+            <g><rect x="360" y="74" width="60" height="24" rx="7"/><text x="390" y="90" text-anchor="middle">EU</text></g>
+            <g><rect x="56" y="146" width="108" height="24" rx="7"/><text x="110" y="162" text-anchor="middle">Annual Report</text></g>
+            <g><rect x="222" y="146" width="56" height="24" rx="7"/><text x="250" y="162" text-anchor="middle">10-Q</text></g>
+            <g><rect x="362" y="146" width="56" height="24" rx="7"/><text x="390" y="162" text-anchor="middle">MSA</text></g>
+          </svg>
+          <div class="row" style="margin-top:8px; gap:18px;">
+            <span class="streelbl" style="color:var(--c5);">◆ folders = tags</span>
+            <span class="streelbl" style="color:var(--accent);">━ Annual Report hangs under all 3</span>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span><b>Each tag <em>is</em> a folder.</b> Here's the part worth pinning down: a folder isn't a place a file sits in — <b>each distinct tag simply becomes a folder</b>. The <em>Financials</em> folder is just "every document tagged Financials"; <em>EU</em> is every EU-tagged doc. So a document hangs under <b>every</b> folder whose tag it carries — the Annual Report is under all three at once (the blue edges). Those tag-folders, the documents, and each document's own sections wire up into <b>one continuous tree</b>.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="row" style="margin-bottom:12px;"><span class="blbl" style="margin:0;">query</span><span class="pill hl" style="margin:0; font-size:12.5px;">"What caused the EU outage, and how did it hit revenue?"</span></div>
+          <svg class="stree" width="460" height="188" viewBox="0 0 460 188" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line class="on" x1="230" y1="34" x2="90" y2="74"/>
+            <line class="on" x1="230" y1="34" x2="230" y2="74"/>
+            <line class="mute" x1="230" y1="34" x2="390" y2="74"/>
+            <line class="on" x1="90" y1="98" x2="110" y2="146"/>
+            <line class="on" x1="230" y1="98" x2="110" y2="146"/>
+            <line class="mute" x1="390" y1="98" x2="110" y2="146"/>
+            <line class="mute" x1="90" y1="98" x2="250" y2="146"/>
+            <line class="mute" x1="230" y1="98" x2="390" y2="146"/>
+            <line class="mute" x1="390" y1="98" x2="390" y2="146"/>
+            <g class="root"><rect x="196" y="10" width="68" height="24" rx="7"/><text x="230" y="26" text-anchor="middle">Corpus</text></g>
+            <g class="hi"><rect x="48" y="74" width="84" height="24" rx="7"/><text x="90" y="90" text-anchor="middle">Financials</text></g>
+            <g class="hi"><rect x="176" y="74" width="108" height="24" rx="7"/><text x="230" y="90" text-anchor="middle">Risk &amp; Legal</text></g>
+            <g class="lo"><rect x="360" y="74" width="60" height="24" rx="7"/><text x="390" y="90" text-anchor="middle">EU</text></g>
+            <g class="pick"><rect x="56" y="146" width="108" height="24" rx="7"/><text x="110" y="162" text-anchor="middle">Annual Report</text></g>
+            <g class="lo"><rect x="222" y="146" width="56" height="24" rx="7"/><text x="250" y="162" text-anchor="middle">10-Q</text></g>
+            <g class="pruned"><rect x="362" y="146" width="56" height="24" rx="7"/><text x="390" y="162" text-anchor="middle">MSA</text></g>
+          </svg>
+          <div class="blbl" style="margin-top:10px; text-align:center;">↓ then down into the picked document's own section tree</div>
+          <div class="toc" style="max-width:250px; margin:6px auto 0;">
+            <div class="tocrow child sel"><span class="cbar c4"></span><span class="ttl2">Risk › Outages</span><span class="pg">p.41</span></div>
+            <div class="tocrow child sel"><span class="cbar c2"></span><span class="ttl2">MD&amp;A › Revenue</span><span class="pg">p.25</span></div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span><b>Search descends it, pruning as it goes.</b> The value-guided search from the last section starts at the root. It scores the tag-folders and documents by their labels: the topic folders <em>Financials</em> and <em>Risk &amp; Legal</em> light up, the weaker <em>EU</em> folder and the off-topic <em>MSA</em> contract are pruned, and the <em>Annual Report</em> — under both hot folders — is the pick. Only then does it drop into that document's own section tree for the exact pages. Corpus → folder → document → section, with most of the million trees never touched.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>So yes — the <strong>value-function search is what answers the scaling question too</strong>, and that's the whole elegance of it. Because the corpus folders, the documents, and their sections are <em>one</em> tree, a single search policy runs from topic all the way down to paragraph, pruning hard at every level so the LLM only ever reads the sliver that matters. It's the same recursion PageIndex used to index one document, applied one level up to index a whole library.</p>
+  <p>One thing the flat picture above understates: <strong>the folder layer needn't be a single row.</strong> Those tags nest — a broad <em>Finance</em> folder can hold narrower <em>Filings</em> and <em>Statements</em> sub-folders beneath it — and the different facets (topic, region, year) give <em>overlapping</em> hierarchies a document threads through at once. So it's less "one shelf of folders" and more a multi-level directory the search prunes down through, exactly like the sections inside a single document. (How deep PageIndex actually builds it isn't published — treat depth as illustrative.)</p>
+  <div class="note"><b>Same honesty as before.</b> The File System is a <b>paid Enterprise/Cloud feature</b>, not in the open-source repo (which stays one-document-at-a-time). PageIndex frames it as "the same tree search policy" scaling "to millions of documents in one index," but the corpus-level mechanics are unpublished, and that "millions" figure is vendor-stated with <b>no latency or accuracy benchmarks</b>. Read this section as the concept, not a measured system.</div>
+
+  <!-- ============ 6 · the catch ============ -->
+  <h2><span class="kicker">06 · The trade-off</span>What it nails, and what it costs</h2>
+  <p><b>The upside.</b> On its home turf — long, structured professional documents — PageIndex delivers. Its headline result is <b>Mafin 2.5</b>, a retrieval system built on it, which scores <a href="https://github.com/VectifyAI/Mafin2.5-FinanceBench" target="_blank" rel="noopener">98.7% on FinanceBench</a> — up from 38% for an earlier version. You get that without an embedding model, a chunk size to tune, or a vector database to stand up and keep in sync — the index is a plain, readable tree. Answers come back <b>cited to the exact page</b>.</p>
+  <p><b>The cost.</b> A lot of work at query time, and that isn't free:</p>
+  <ul class="conslist">
+    <li><b>Every query is several LLM calls.</b> Navigate the tree, maybe loop, write the answer — where vector RAG answers in one cosine pass measured in milliseconds. So it's slower and pricier per query, and not built for high-volume, low-latency search.</li>
+    <li><b>Slow, costly ingestion.</b> Building the tree pushes the whole document through an LLM. It's a one-time cost per doc, but it's far heavier than embedding chunks in a batch.</li>
+    <li><b>It needs real structure.</b> The whole method assumes a genuine hierarchy to navigate. Messy, flat, or unstructured documents degrade it — the hosted version papers over this with synthesized "virtual" nodes, but the base method leans on the author having written a good outline.</li>
+    <li><b>The open-source base is one document at a time.</b> The repo builds a tree per document and searches within it; the cross-corpus File System from the last section is a separate, <b>paid</b> layer — so at real corpus scale you're on the commercial product.</li>
+  </ul>
+
+  <!-- ============ 6 · head to head ============ -->
+  <h2><span class="kicker">07 · Head to head</span>How PageIndex stacks up</h2>
+  <p>We've seen how PageIndex works, scales, and costs. The last question is how it stacks up against the alternatives — plain vector RAG, and RAPTOR and GraphRAG from the last post. They rhyme on the surface: most add structure an LLM built, then retrieve over it. But the machinery pulls apart in ways worth seeing. Same question, four approaches:</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">PAGEINDEX vs. THE REST</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="row" style="margin-bottom:12px;"><span class="blbl" style="margin:0;">query</span><span class="pill hl" style="margin:0; font-size:12.5px;">"What caused the EU outage, and how did it hit revenue?"</span></div>
+          <div class="split" style="align-items:stretch;">
+            <div class="scol" style="max-width:300px;">
+              <div class="blbl" style="color:var(--cn);">NORMAL RAG · top-k by cosine</div>
+              <div class="rlist" style="max-width:none;">
+                <div class="ritem hit"><span class="cbar cn"></span><span class="rlabel">"…revenue grew 12% year over year…"</span></div>
+                <div class="ritem"><span class="cbar cn"></span><span class="rlabel">"…outage response playbook, step 3…"</span></div>
+                <div class="ritem dim"><span class="cbar cn"></span><span class="rlabel">"…revenue recognition policy…"</span></div>
+              </div>
+              <div class="blbl" style="margin-top:8px; color:var(--c4);">nearest by words — a wrong, boundary-sliced chunk ✗</div>
+            </div>
+            <div class="mid"><div class="midlbl">same<br>question</div><div class="arrow2">↔</div></div>
+            <div class="scol" style="max-width:280px;">
+              <div class="blbl" style="color:var(--accent);">PAGEINDEX · reason over the contents</div>
+              <div class="toc" style="max-width:280px;">
+                <div class="tocrow sel"><span class="cbar c4"></span><span class="ttl2">Risk Factors › Outages</span><span class="pg">p.41</span></div>
+                <div class="tocrow sel"><span class="cbar c2"></span><span class="ttl2">MD&amp;A › Revenue</span><span class="pg">p.25</span></div>
+              </div>
+              <div class="blbl" style="margin-top:8px; color:var(--c1);">reads the two whole sections ✓</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span><b>The sharpest contrast — plain vector RAG.</b> Cosine grabs whatever chunk <em>looks</em> most like the words, even the wrong, boundary-sliced "revenue" one, and misses the causal link. PageIndex reasons that the outage lives in Risk Factors and its revenue effect in MD&amp;A, and reads both whole sections. The rest of the field sits between these two poles.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="row" style="gap:18px; align-items:flex-start; justify-content:center; flex-wrap:wrap;">
+            <div class="scol" style="max-width:120px;">
+              <div class="blbl" style="color:var(--cn);">Normal RAG</div>
+              <div class="stack" style="gap:5px; align-items:stretch;">
+                <div class="pill mono" style="margin:0; font-size:10px;">chunk</div>
+                <div class="pill mono" style="margin:0; font-size:10px;">chunk</div>
+                <div class="pill mono" style="margin:0; font-size:10px;">chunk</div>
+              </div>
+              <div class="blbl" style="margin-top:6px;">flat, no structure</div>
+            </div>
+            <div class="scol" style="max-width:150px;">
+              <div class="blbl" style="color:var(--c3);">RAPTOR</div>
+              <div class="rtree">
+                <div class="rlevel"><span class="tnode root" style="max-width:118px;">cluster summary</span></div>
+                <div class="upband"><span class="up">↑</span> embed &amp; cluster</div>
+                <div class="rlevel"><span class="tnode n1">chunk</span><span class="tnode n2">chunk</span></div>
+              </div>
+            </div>
+            <div class="scol" style="max-width:148px;">
+              <div class="blbl" style="color:var(--c5);">GraphRAG</div>
+              <svg width="140" height="88" viewBox="0 0 140 88" fill="none" style="display:block;">
+                <line x1="70" y1="22" x2="32" y2="64" style="stroke:var(--faint);stroke-width:1.4;"/>
+                <line x1="70" y1="22" x2="108" y2="64" style="stroke:var(--faint);stroke-width:1.4;"/>
+                <circle cx="70" cy="22" r="6" style="fill:var(--c5);"/><text x="70" y="13" text-anchor="middle" style="font-family:var(--mono);font-size:8px;fill:var(--fg);">outage</text>
+                <circle cx="32" cy="64" r="6" style="fill:var(--c5);"/><text x="32" y="80" text-anchor="middle" style="font-family:var(--mono);font-size:8px;fill:var(--fg);">TLS cert</text>
+                <circle cx="108" cy="64" r="6" style="fill:var(--c5);"/><text x="108" y="80" text-anchor="middle" style="font-family:var(--mono);font-size:8px;fill:var(--fg);">EU</text>
+              </svg>
+            </div>
+            <div class="scol" style="max-width:168px;">
+              <div class="blbl" style="color:var(--accent);">PageIndex</div>
+              <div class="toc" style="max-width:168px;">
+                <div class="tocrow"><span class="cbar c4"></span><span class="ttl2">Risk Factors</span></div>
+                <div class="tocrow child"><span class="cbar c4"></span><span class="ttl2">Outages</span></div>
+                <div class="tocrow"><span class="cbar c2"></span><span class="ttl2">MD&amp;A</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span><b>Four structures, built four ways.</b> RAG adds none — just flat chunks. The other three add structure an LLM built, but from opposite directions: RAPTOR <em>invents</em> a tree bottom-up by clustering vectors, GraphRAG extracts an entity <em>graph</em> across the corpus, and PageIndex takes the document's <em>own</em> table of contents as-is. A statistical artifact, a web of entities, and the author's outline.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="stack" style="gap:9px; width:100%; max-width:660px;">
+            <div class="lane rag"><div class="lname">Normal RAG</div><div class="lbody">Embed the query, take the nearest chunks by <b>cosine</b>.</div><div class="verdict-chip vc-bad">similarity</div></div>
+            <div class="lane raptor"><div class="lname">RAPTOR</div><div class="lbody">Collapse the summary tree, rank every node by <b>cosine</b>.</div><div class="verdict-chip vc-ok">similarity</div></div>
+            <div class="lane graph"><div class="lname">GraphRAG</div><div class="lbody">Entity-embedding lookup, then walk edges / map-reduce — a <b>mechanical</b> recipe.</div><div class="verdict-chip vc-ok">mechanical</div></div>
+            <div class="lane pageindex"><div class="lname">PageIndex</div><div class="lbody">Hand the whole tree to an LLM; it <b>reasons</b> which sections to open. No embedding at all.</div><div class="verdict-chip vc-good">reasoning</div></div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span><b>Three of the four still bottom out in a vector.</b> RAG and RAPTOR rank by cosine; GraphRAG's local search starts with an entity-embedding lookup, then walks edges mechanically. PageIndex never embeds anything — retrieval is an LLM <em>reasoning</em> over structure, in the spirit of the <a href="https://hzjken.github.io/llm-wiki.html" target="_blank" rel="noopener">LLM wiki</a>'s agent deciding which page to read next.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="stack" style="gap:9px; width:100%; max-width:660px;">
+            <div class="lane rag"><div class="lname">Normal RAG</div><div class="lbody"><b>Best at:</b> pinpoint facts across any corpus. <b>Weak at:</b> anything spanning structure.</div></div>
+            <div class="lane raptor"><div class="lname">RAPTOR</div><div class="lbody"><b>Best at:</b> summarizing long documents. <b>Weak at:</b> linking specific entities.</div></div>
+            <div class="lane graph"><div class="lname">GraphRAG</div><div class="lbody"><b>Best at:</b> corpus-wide, multi-hop sensemaking. <b>Weak at:</b> cost, simple lookups.</div></div>
+            <div class="lane pageindex"><div class="lname">PageIndex</div><div class="lbody"><b>Best at:</b> deep, cited Q&amp;A inside one long structured document. <b>Weak at:</b> speed, huge corpora.</div></div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">4</span><b>And they aim at different targets.</b> RAG for pinpoint facts anywhere, RAPTOR for summarizing length, GraphRAG for corpus-wide sensemaking, PageIndex for deep, precise answers inside one long document. Different jobs, not just different engines — match the tool to the question you actually get.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+
+  <p>So the family resemblance is real but shallow. The three structured approaches all give more traceable answers than flat top-k — you can point at what got retrieved and why. But RAPTOR and GraphRAG keep the vector engine and bolt structure <em>beside</em> it; PageIndex rips the engine out and makes <strong>reasoning over the document's own structure</strong> the entire mechanism, and it's the only one aimed at going deep inside a single long document rather than sweeping a corpus. Which leaves just one question — when is that trade worth making?</p>
+
+  <!-- ============ 8 · wrap ============ -->
+  <h2><span class="kicker">08 · Wrapping up</span>Where PageIndex fits</h2>
+  <p>The last post covered three approaches; PageIndex adds a fourth that leans in a new direction — it isn't <em>more</em> structure so much as a <em>sideways</em> step, trading the vector engine for reasoning. Here's the full board:</p>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th>Approach</th><th>Structure it adds</th><th>Retrieval</th><th>Best for</th><th>Main cost</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Normal RAG</td>
+          <td><span class="problem-tag p-flat">flat chunks + vectors</span></td>
+          <td>Cosine top-k</td>
+          <td>Pinpoint facts across any corpus</td>
+          <td>Blind to structure &amp; the big picture</td>
+        </tr>
+        <tr>
+          <td>RAPTOR</td>
+          <td><span class="problem-tag p-tree">bottom-up summary tree</span></td>
+          <td>Cosine over all levels</td>
+          <td>Summarizing long documents</td>
+          <td>Still similarity; summaries lose detail</td>
+        </tr>
+        <tr>
+          <td>GraphRAG</td>
+          <td><span class="problem-tag p-graph">entity graph (corpus)</span></td>
+          <td>Traversal + map-reduce</td>
+          <td>Whole-corpus sensemaking &amp; multi-hop</td>
+          <td>Very expensive to build &amp; update</td>
+        </tr>
+        <tr>
+          <td>PageIndex</td>
+          <td><span class="problem-tag p-page">table-of-contents tree</span></td>
+          <td>LLM tree-search reasoning</td>
+          <td>Precise, cited Q&amp;A over long structured single docs (finance, legal)</td>
+          <td>Slow &amp; costly per query; needs real structure; multi-doc scale is a paid add-on</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>My honest take: PageIndex isn't a replacement for vector RAG, and the "vectors are dead" framing oversells it. It's a <strong>precision instrument</strong> for a specific job — going deep into a long, well-structured, high-stakes document where a wrong answer is expensive and an <em>auditable</em> one is worth paying for. That's exactly why finance and legal are its home turf. For a support FAQ or a consumer chatbot, cosine top-k is still the right, cheap answer.</p>
+  <p>Which lands back on the through-line from the last post: RAG quality is mostly about giving the model the <em>right shape of context</em>. Flat chunks are one shape, a summary tree another, a graph a third. PageIndex's bet is that for a long professional document, the best shape was there all along — <strong>the author already wrote the table of contents</strong>. Don't approximate it with clusters or graphs. Just read it like a human would.</p>
+
+  <p class="muted" style="font-size:14px; margin-top:36px;">Thanks for reading, I'll keep updating as the reasoning-RAG space shakes out.</p>
+
+</div>
+
+<script>
+/* ---- keep the embedded blog in sync with the site's light/dark toggle ---- */
+(function(){
+  var root = document.documentElement;
+  try{
+    var saved = localStorage.getItem('kh-theme');
+    root.setAttribute('data-theme', saved || 'light');
+  }catch(e){}
+  window.addEventListener('storage', function(e){
+    if(e.key === 'kh-theme') root.setAttribute('data-theme', e.newValue || 'light');
+  });
+})();
+
+/* ---- tell the parent page how tall this embed is, so the iframe never clips ---- */
+function reportHeight(){
+  var h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+  if(h <= 0) return;
+  try{ if(window.frameElement){ window.frameElement.style.height = h + 'px'; } }catch(e){}
+  try{ if(window.parent && window.parent !== window){ window.parent.postMessage({type:'kh-embed-height', height:h}, '*'); } }catch(e){}
+}
+window.addEventListener('load', reportHeight);
+window.addEventListener('resize', reportHeight);
+[100,400,900,1600].forEach(function(t){ setTimeout(reportHeight, t); });
+
+/* ---- reusable stepper ---- */
+document.querySelectorAll('[data-stepper]').forEach(function(sp){
+  var steps = Array.prototype.slice.call(sp.querySelectorAll('.step'));
+  if(!steps.length) return;
+  var dotsWrap = sp.querySelector('.dots');
+  var counter = sp.querySelector('.counter');
+  var i = 0;
+
+  steps.forEach(function(_, idx){
+    var d = document.createElement('button');
+    d.className = 'dot'; d.type = 'button';
+    d.setAttribute('aria-label', 'Go to step ' + (idx+1));
+    d.addEventListener('click', function(){ go(idx); });
+    dotsWrap.appendChild(d);
+  });
+  var dots = Array.prototype.slice.call(dotsWrap.children);
+
+  function go(n){
+    i = Math.max(0, Math.min(steps.length-1, n));
+    steps.forEach(function(s, idx){ s.classList.toggle('active', idx===i); });
+    dots.forEach(function(d, idx){ d.classList.toggle('on', idx===i); });
+    if(counter) counter.textContent = 'Step ' + (i+1) + ' / ' + steps.length;
+    reportHeight();
+  }
+  sp.tabIndex = 0;
+  sp.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowLeft'){ go(i-1); e.preventDefault(); }
+    else if(e.key === 'ArrowRight'){ go(i+1); e.preventDefault(); }
+  });
+  go(0);
+});
+</script>
+</body>
+</html>
