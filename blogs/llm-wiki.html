@@ -537,7 +537,43 @@ tr td:first-child{font-weight:600; white-space:nowrap;}
   <p>And the <code>SCHEMA.md</code> is what keeps all three consistent. It's the real product here — hand the same schema to a different model six months from now and your wiki keeps its exact shape. The pages are the output; the schema is the thing you actually design.</p>
 
   <!-- ============ 4 ============ -->
-  <h2><span class="kicker">04 · The RAG question</span>Wiki Q&amp;A vs RAG Q&amp;A</h2>
+  <h2><span class="kicker">04 · A shared format</span>OKF standardizes the folder</h2>
+  <p>There's a catch hiding in that last line. Your <code>SCHEMA.md</code> pins down <em>your</em> wiki — but the field names, the folder layout, the way you write links are all just choices you happened to make. Build a wiki with one tool and a different agent can't read it without custom glue, because it has no idea what shape you picked. For a personal wiki that's fine. The moment you want to <strong>share</strong> one — hand it to a teammate, point another agent at it — every wiki being its own snowflake becomes the whole problem.</p>
+  <p>In June 2026 Google Cloud shipped a fix: the <strong>Open Knowledge Format (OKF)</strong>, a small open spec (still v0.1) that standardizes the exact markdown folder we've been building — so a wiki one tool writes, any agent can read, no translation (<a href="https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing" target="_blank" rel="noopener">the announcement</a>). The whole spec fits on a page, and that restraint <em>is</em> the design: standardize just enough to interoperate, leave everything else to you. Here's a real OKF page — our caffeine note, in the format:</p>
+  <div class="diagram">
+    <div class="md" style="max-width:460px; margin:0 auto;">
+<span class="fn">pages/caffeine.md · OKF</span>
+<div class="mln">---</div>
+<div class="mln">type: concept<span style="color:var(--faint); margin-left:14px;"># the one required field</span></div>
+<div class="mln">title: Caffeine</div>
+<div class="mln">tags: [stimulant, sleep]<span style="color:var(--faint); margin-left:14px;"># optional reserved fields</span></div>
+<div class="mln">timestamp: 2026-07-12</div>
+<div class="mln">---</div>
+<div class="mh1"># Caffeine</div>
+<div class="mtx">Half-life ~5–6h → afternoon doses delay</div>
+<div class="mtx">onset. Blocks <span class="mln">[adenosine](adenosine.md)</span><span style="color:var(--faint);">&nbsp;&nbsp;# a plain md link = a graph edge</span></div>
+    </div>
+  </div>
+  <p>Strip it to what the spec actually <em>mandates</em> — and, just as telling, what it leaves wide open:</p>
+  <div class="tldr">
+    <p><strong>One file per concept.</strong> The file's path <em>is</em> the concept's identity — no IDs to hand out or keep unique.</p>
+    <p><strong>One required field: <code>type</code>.</strong> That's the entire mandate. A few optional reserved fields are there if you want them — <code>title</code>, <code>description</code>, <code>resource</code> (a URL), <code>tags</code>, <code>timestamp</code> — and any other field you invent is allowed.</p>
+    <p><strong>The body is plain markdown.</strong> No structure imposed — headings, tables, prose, whatever the concept needs.</p>
+    <p><strong>Links are ordinary markdown links.</strong> <code>[adenosine](adenosine.md)</code>, and those links taken together <em>are</em> the knowledge graph. Note it's normal links, not Obsidian <code>[[wikilinks]]</code> — so every page renders on GitHub exactly as written.</p>
+    <p><strong>Two reserved filenames.</strong> <code>index.md</code> for navigation and <code>log.md</code> for history — the same two files we already used, both optional. No manifest, no config, nothing else to learn.</p>
+  </div>
+  <p>Notice OKF and your <code>SCHEMA.md</code> aren't the same thing, and don't compete. OKF is the <strong>envelope</strong> — "every page carries a <code>type</code> and links with markdown." Your schema is the <strong>house rules inside that envelope</strong> — which types actually exist, when to update versus create, what stays private. OKF makes your wiki <em>legible to others</em>; the schema keeps it <em>yours</em>. You want both.</p>
+  <p>So why wrap your notes in someone else's spec at all? Three payoffs, and they all fall out of the format being boring on purpose:</p>
+  <div class="tldr">
+    <p><strong style="color:var(--c1)">It's just files.</strong> Markdown in a folder — commit it to git beside your code, open it in any editor, render it on GitHub, with no database, SDK, or runtime to stand up. A human and an agent read the very same file.</p>
+    <p><strong style="color:var(--c2)">Writer and reader decouple.</strong> The tool that builds the wiki and the agent that queries it never have to know each other. Swap either side for a better one and nothing breaks — the format is the contract between them.</p>
+    <p><strong style="color:var(--c3)">One wiki, many agents.</strong> A wiki a teammate compiles, your agent reads without a line of glue. That's the jump from a private folder to a portable, shareable bundle — and it's exactly what makes this worth having at a company.</p>
+  </div>
+  <div class="note"><b>Still v0.1.</b> OKF is deliberately minimal — it won't tell you <em>which</em> types to use or how to maintain them, so quality still lives in your schema, not the standard. Google shipped it with reference tools — an agent that drafts OKF pages, a self-contained HTML viewer that graphs a bundle, a few sample bundles — but calls it a starting point, not a finished spec. Treat it as an early convention likely to grow, not a settled one.</div>
+  <p>A portable wiki is a real step up — but it sidesteps the older, sharper question: when is a wiki even the right tool, versus just doing RAG? Time to put the two head to head.</p>
+
+  <!-- ============ 5 ============ -->
+  <h2><span class="kicker">05 · The RAG question</span>Wiki Q&amp;A vs RAG Q&amp;A</h2>
   <p>We just watched the wiki answer that coffee question by opening one page. RAG would answer the same question in a completely different way — and that difference is the whole point.</p>
   <p>You've probably seen the "RAG is dead" takes. That's not quite it. What the wiki really challenges is narrower and sharper: <strong>RAG retrieves and forgets.</strong> Ask something that needs five documents stitched together, and a RAG system finds the fragments and re-stitches them — every single time, from scratch. The synthesis is never written down; it's re-derived on every query and then thrown away. NotebookLM, ChatGPT file uploads, most RAG chatbots all work this way. The wiki flips it: do the synthesis <em>once</em>, save it as a page, and read it back later. Karpathy's line for it: <em>"stop re-deriving, start compiling."</em></p>
   <p>Same question, two paths — here they are side by side.</p>
@@ -636,8 +672,8 @@ tr td:first-child{font-weight:600; white-space:nowrap;}
   <p>The whole difference in one line: <strong>RAG does the synthesis at query time and discards it; the wiki does it at ingest time and keeps it.</strong> That's why wiki answers get faster and richer the more you use it, while RAG always starts over from raw chunks.</p>
   <p>But be honest about the flip side: the wiki is only as fresh as its last ingest. On a personal wiki you curate, that's a fine trade — but a plain folder of markdown has limits, and the real question is how far it can scale.</p>
 
-  <!-- ============ 5 ============ -->
-  <h2><span class="kicker">05 · Scaling up</span>What you add at scale</h2>
+  <!-- ============ 6 ============ -->
+  <h2><span class="kicker">06 · Scaling up</span>What you add at scale</h2>
   <p>The plain version — markdown plus a coding agent — is genuinely enough for a personal wiki, up to roughly <strong>100k tokens / ~100 articles</strong>, the point where the LLM can still hold the index in context and navigate by it. Past that, <a href="https://github.com/rohitg00" target="_blank" rel="noopener">Rohit Ghumare</a> published an <a href="https://gist.github.com/rohitg00/2067ab416f7bbe447c1977edaaa681e2" target="_blank" rel="noopener">"LLM Wiki v2"</a> mapping out what you bolt on — and crucially, it's <em>modular</em>. You add a layer only when you hit the wall it solves.</p>
   <div class="diagram">
     <div class="layers">
@@ -650,8 +686,8 @@ tr td:first-child{font-weight:600; white-space:nowrap;}
   </div>
   <p>Two things to notice. First, layer 3 is the tell: <strong>at scale, the wiki doesn't replace retrieval — it sits on top of it.</strong> Hold that thought for the enterprise question. Second, the schema keeps absorbing more of the design — entity types, supersession rules, what's private versus shared. The bigger this gets, the more the schema <em>is</em> the system.</p>
 
-  <!-- ============ 6 ============ -->
-  <h2><span class="kicker">06 · The hard question</span>The enterprise catch</h2>
+  <!-- ============ 7 ============ -->
+  <h2><span class="kicker">07 · The hard question</span>The enterprise catch</h2>
   <p>For a personal knowledge base, the answer is an easy yes — this is the best version of the personal wiki anyone's built. The enterprise is where I'd pump the brakes, because the wiki's whole trick assumes a corpus that's <em>bounded, and curated by someone you trust</em>, small enough that the model can hold the map in its head. Company knowledge breaks every one of those assumptions:</p>
   <div class="tldr">
     <p><strong style="color:var(--c4)">Scale.</strong> Millions of documents, not a hundred. The index alone won't fit in context, so you need a retrieval layer no matter what — which is exactly the ground RAG owns.</p>
@@ -691,8 +727,8 @@ tr td:first-child{font-weight:600; white-space:nowrap;}
   <p>And the maintenance loop still runs, gated: an answer is only promoted into the wiki after it clears an <strong>LLM-as-judge, a curation team, or user up/down feedback</strong> — the gate that keeps bad answers from compounding — after which it's re-available to the wiki tool next time.</p>
   <div class="note"><b>A personal take, not a settled pattern.</b> This architecture is my own guess — the developer community hasn't converged on a standard way to run an LLM-wiki layer at enterprise scale yet, so treat it as a starting point to poke holes in rather than a blueprint. I could well be wrong about the shape.</div>
 
-  <!-- ============ 7 ============ -->
-  <h2><span class="kicker">07 · Wrapping up</span>Wiki, RAG, or both</h2>
+  <!-- ============ 8 ============ -->
+  <h2><span class="kicker">08 · Wrapping up</span>Wiki, RAG, or both</h2>
   <p>It was never either/or. They make opposite bets about when you pay for synthesis, and the right call depends entirely on your corpus. Here's the whole decision on one screen:</p>
   <div class="tblwrap">
     <table>
