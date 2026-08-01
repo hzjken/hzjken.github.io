@@ -1,0 +1,1255 @@
+<!--
+title: LLMs Make Ontology Great Again
+date: 2026-08-01
+tags: LLM, Ontology, Knowledge Graph, Agents, Enterprise
+description: What an ontology actually is, what goes inside it and in which format, how it relates to a knowledge graph, where it pays off, how LLMs build one now — and how it gets used to answer real questions, ground agents, and keep data queries honest.
+-->
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLMs Make Ontology Great Again</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- theme tokens (mirrors the site) ---------- */
+:root{
+  --bg:#fafafa; --surface:#ffffff; --panel:#f2f3f5;
+  --fg:#101318; --muted:#5a616d; --faint:#8b93a1;
+  --border:#e6e8ec; --accent:#2563eb; --accent-soft:#e6effb;
+  /* semantic entity palette — same class = same colour everywhere */
+  --c1:#16a34a; --c2:#2563eb; --c3:#0d9488; --c4:#ea580c; --c5:#7c3aed;
+  --cn:#b6bcc6; --cw:#ffffff; --cw-bd:#cfd4dc;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;
+  --display:'Space Grotesk',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+html[data-theme="dark"]{
+  --bg:#0b0d11; --surface:#12151b; --panel:#161a21;
+  --fg:#e9ebef; --muted:#949bab; --faint:#6c7686;
+  --border:#222732; --accent:#60a5fa; --accent-soft:#16223c;
+  --c1:#22c55e; --c2:#3b82f6; --c3:#2dd4bf; --c4:#f97316; --c5:#a78bfa;
+  --cn:#454b57; --cw:#e8ecf2; --cw-bd:#aeb6c2;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;}
+body{
+  background:var(--bg); color:var(--fg);
+  font-family:var(--sans); line-height:1.62; font-size:16.5px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:880px; margin:0 auto; padding:8px 20px 60px;}
+
+/* ---------- typography ---------- */
+h2{font-family:var(--display); font-weight:600; font-size:26px; line-height:1.2;
+   margin:52px 0 6px; letter-spacing:-.2px;}
+h2 .kicker{display:block; font-family:var(--mono); font-size:12.5px; font-weight:500;
+   letter-spacing:1.2px; text-transform:uppercase; color:var(--accent); margin-bottom:8px;}
+h3{font-family:var(--display); font-weight:600; font-size:19px; margin:30px 0 4px;}
+p{margin:12px 0;}
+a{color:var(--accent);}
+strong{font-weight:600;}
+.lead{font-size:19px; line-height:1.6; color:var(--fg);}
+.muted{color:var(--muted);}
+code{font-family:var(--mono); font-size:.9em; background:var(--panel);
+  border:1px solid var(--border); border-radius:5px; padding:1px 6px;}
+hr{border:none; border-top:1px solid var(--border); margin:44px 0;}
+
+/* ---------- boxes / callouts ---------- */
+.tldr{background:var(--panel); border:1px solid var(--border); border-radius:14px;
+  padding:18px 22px; margin:22px 0 8px;}
+.tldr h4{margin:0 0 6px; font-family:var(--mono); font-size:12.5px; letter-spacing:1px;
+  text-transform:uppercase; color:var(--accent);}
+.tldr p{margin:6px 0;}
+.note{border-left:3px solid var(--accent); background:var(--accent-soft);
+  border-radius:0 10px 10px 0; padding:12px 18px; margin:20px 0; font-size:15.5px;}
+.note b{color:var(--accent);}
+.moves{margin:14px 0; padding:0; list-style:none;}
+.moves li{position:relative; padding-left:20px; margin:9px 0;}
+.moves li::before{content:""; position:absolute; left:2px; top:10px; width:7px; height:7px;
+  border-radius:2px; background:var(--c4);}
+
+/* ---------- generic diagram shell ---------- */
+.diagram{background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  padding:24px; margin:22px 0;}
+
+/* ---------- stepper ---------- */
+.stepper{background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  margin:18px 0 8px; overflow:hidden; outline:none;}
+.stepper:focus-visible{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);}
+.stepper .head{display:flex; align-items:center; justify-content:space-between;
+  padding:12px 18px; border-bottom:1px solid var(--border); background:var(--panel);}
+.stepper .head .ttl{font-family:var(--mono); font-size:12.5px; letter-spacing:.6px; color:var(--muted);}
+.stepper .head .counter{font-family:var(--mono); font-size:12.5px; color:var(--accent); font-weight:500;}
+.stage{position:relative; min-height:350px; padding:26px 24px 6px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;}
+.step{display:none; width:100%;}
+.step.active{display:block; animation:fade .25s ease;}
+@keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
+.stage .viz{display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:14px; min-height:230px;}
+.cap{margin-top:14px; text-align:center; font-size:15px; color:var(--fg);
+  max-width:660px; margin-left:auto; margin-right:auto;}
+.cap .n{display:inline-block; background:var(--accent); color:#fff; font-family:var(--mono);
+  font-size:12px; font-weight:600; border-radius:999px; padding:1px 9px; margin-right:8px;}
+.controls{display:flex; align-items:center; justify-content:center; gap:16px;
+  padding:14px; border-top:1px solid var(--border); background:var(--panel);}
+.dots{display:flex; gap:7px;}
+.dot{width:10px; height:10px; border-radius:50%; padding:0; border:none; cursor:pointer;
+  background:var(--border); transition:.15s;}
+.dot:hover{background:var(--faint);}
+.dot.on{background:var(--accent); transform:scale(1.3);}
+
+/* ---------- split layout (input → process → output) ---------- */
+.split{display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; width:100%;}
+.split .colv{flex:1 1 290px; min-width:240px; max-width:350px;}
+.split .mid{display:flex; flex-direction:column; align-items:center; gap:6px; flex:0 0 auto;}
+.split .mid .arrow2{font-size:22px; font-weight:700; line-height:1; color:var(--faint);}
+.split .mid .midlbl{font-family:var(--mono); font-size:10px; letter-spacing:.5px; color:var(--faint);
+  text-align:center; line-height:1.35;}
+@media(max-width:620px){ .split .mid .arrow2{transform:rotate(90deg);} }
+.colcap{font-family:var(--mono); font-size:10.5px; letter-spacing:.8px; text-transform:uppercase;
+  color:var(--faint); margin:0 0 6px 2px;}
+.scol{flex:0 1 auto; text-align:left; min-width:0;}
+.ar{color:var(--faint); font-size:22px; font-weight:700; flex:0 0 auto; line-height:1;}
+@media(max-width:620px){ .ar{transform:rotate(90deg);} }
+.blbl{font-family:var(--mono); font-size:10px; color:var(--muted); margin-bottom:5px;}
+
+/* generic little pieces */
+.stack{display:flex; flex-direction:column; gap:10px; align-items:center;}
+.pill{background:var(--panel); border:1px solid var(--border); border-radius:10px;
+  padding:8px 14px; font-size:13.5px; max-width:520px; text-align:center;}
+.pill.hl{border-color:var(--accent); background:var(--accent-soft);}
+.pill.mono{font-family:var(--mono); font-size:12.5px;}
+.row{display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap;}
+.vec{display:flex; gap:5px; align-items:center;}
+.vec i{width:9px; height:20px; border-radius:2px; background:var(--accent); opacity:.8;}
+
+/* small doc card (a raw source) */
+.sdoc{background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:13px 15px; box-shadow:0 1px 4px rgba(0,0,0,.06); font-size:12px;}
+.sdoc .dt{font-family:var(--display); font-weight:600; font-size:13.5px; margin-bottom:7px;}
+.sdoc .dh{font-weight:600; color:var(--fg); margin:9px 0 2px;}
+.sdoc .db{color:var(--muted); line-height:1.45;}
+.sdoc .dtable{display:grid; grid-template-columns:1fr auto; gap:1px; background:var(--border);
+  border:1px solid var(--border); border-radius:5px; overflow:hidden; margin:6px 0;}
+.sdoc .dtable span{background:var(--surface); padding:3px 8px; font-size:10.5px; color:var(--muted);}
+.hlt{background:var(--accent-soft); color:var(--fg); border-radius:3px; padding:0 3px;}
+
+/* chips */
+.llmchip{display:inline-flex; align-items:center; gap:6px; font-family:var(--display); font-weight:600;
+  font-size:13px; padding:7px 13px; border-radius:9px; border:1px solid var(--c2);
+  background:var(--accent-soft); color:var(--c2);}
+.engine{display:inline-flex; align-items:center; gap:7px; font-family:var(--display);
+  font-weight:600; font-size:12.5px; padding:7px 13px; border-radius:9px;
+  border:1px solid var(--border); background:var(--panel);}
+.prompt{font-family:var(--mono); font-size:10px; line-height:1.5; text-align:left; color:var(--muted);
+  background:var(--surface); border:1px dashed var(--border); border-radius:8px; padding:8px 10px;
+  max-width:235px; margin-top:9px;}
+.prompt b{color:var(--fg);}
+.jsonout{font-family:var(--mono); font-size:10.5px; line-height:1.5; text-align:left; color:var(--fg);
+  background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 10px;
+  white-space:pre-wrap; margin-bottom:8px;}
+.jsonout .jw{color:var(--faint);}
+
+/* code / triple panel */
+.md{font-family:var(--mono); font-size:11px; line-height:1.6; text-align:left;
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:11px 13px; overflow-x:auto; box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.md .fn{display:block; color:var(--faint); font-size:10px; letter-spacing:.3px;
+  border-bottom:1px solid var(--border); padding-bottom:6px; margin-bottom:7px;}
+.md .mh1{color:var(--accent); font-weight:600;}
+.md .mh2{color:var(--c2); font-weight:600; margin-top:6px;}
+.md .mtx{color:var(--muted);}
+.md .mkey{color:var(--c5);}
+.md .mval{color:var(--c1);}
+.md .mcm{color:var(--faint);}
+.md.k1{border-color:var(--c1);} .md.k1 .fn{color:var(--c1);}
+.md.k2{border-color:var(--c2);} .md.k2 .fn{color:var(--c2);}
+.md.k4{border-color:var(--c4);} .md.k4 .fn{color:var(--c4);}
+
+/* two-column compare */
+.compare{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:22px 0;}
+.compare .col{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px 22px;}
+.compare .col.a{border-top:3px solid var(--c4);}
+.compare .col.b{border-top:3px solid var(--c1);}
+.compare h4{margin:0 0 4px; font-family:var(--display); font-size:17px;}
+.compare .tag{font-family:var(--mono); font-size:12px; color:var(--muted);}
+.compare ul{margin:12px 0 0; padding-left:18px;}
+.compare li{margin:7px 0; font-size:15px;}
+.compare .col.a li::marker{color:var(--c4);}
+.compare .col.b li::marker{color:var(--c1);}
+@media(max-width:640px){ .compare{grid-template-columns:1fr;} }
+
+/* layers (the stack) */
+.layers{display:flex; flex-direction:column; gap:9px; width:100%; max-width:660px; margin:6px auto;}
+.layer{display:flex; align-items:center; gap:13px; border:1px solid var(--border); border-left-width:3px;
+  border-radius:10px; padding:11px 15px; background:var(--surface);}
+.layer .lnum{font-family:var(--mono); font-size:11px; color:var(--faint); flex:0 0 auto; width:14px;}
+.layer .ltitle{font-family:var(--display); font-weight:600; font-size:13.5px; flex:0 0 158px;}
+.layer .ldesc{font-size:12.5px; color:var(--muted); line-height:1.4;}
+.layer.l0{border-left-color:var(--cn); background:var(--panel);}
+.layer.l1{border-left-color:var(--c1);} .layer.l2{border-left-color:var(--c2);}
+.layer.l3{border-left-color:var(--c3);} .layer.l4{border-left-color:var(--c4);}
+.layer.l5{border-left-color:var(--c5);}
+.layer.l1 .ltitle{color:var(--c1);} .layer.l2 .ltitle{color:var(--c2);}
+.layer.l3 .ltitle{color:var(--c3);} .layer.l4 .ltitle{color:var(--c4);}
+.layer.l5 .ltitle{color:var(--c5);}
+@media(max-width:560px){ .layer{flex-wrap:wrap; gap:6px;} .layer .ltitle{flex-basis:auto;} }
+
+/* summary table */
+.tblwrap{overflow-x:auto; margin:20px 0;}
+table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:780px;}
+th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--border); vertical-align:top;}
+th{font-family:var(--mono); font-size:12px; letter-spacing:.5px; text-transform:uppercase;
+   color:var(--muted); background:var(--panel);}
+tr td:first-child{font-weight:600; white-space:nowrap;}
+.tg{display:inline-block; font-family:var(--mono); font-size:11px; padding:2px 8px;
+  border-radius:999px; border:1px solid var(--border); white-space:nowrap;}
+.tg.ok{color:var(--c1); border-color:var(--c1);}
+.tg.no{color:var(--c4); border-color:var(--c4);}
+.tg.hy{color:var(--c2); border-color:var(--c2);}
+.tg.k5{color:var(--c5); border-color:var(--c5);}
+.tg.k3{color:var(--c3); border-color:var(--c3);}
+
+/* ---------- knowledge-graph SVG frame ---------- */
+.kg{width:100%; max-width:600px; margin:0 auto; display:block;}
+.kg .nlab{font-family:var(--display); font-weight:600; font-size:12px; fill:var(--fg);}
+.kg .ilab{font-family:var(--mono); font-size:9.5px; fill:var(--muted);}
+.kg .elab{font-family:var(--mono); font-size:8.5px; fill:var(--muted); letter-spacing:.2px;}
+.kg .edge{stroke:var(--faint); stroke-width:1.4;}
+.kg .edge.hot{stroke:var(--c4); stroke-width:2.4;}
+.kg .node-c1{fill:var(--surface); stroke:var(--c1); stroke-width:1.6;}
+.kg .node-c2{fill:var(--surface); stroke:var(--c2); stroke-width:1.6;}
+.kg .node-c3{fill:var(--surface); stroke:var(--c3); stroke-width:1.6;}
+.kg .node-c4{fill:var(--surface); stroke:var(--c4); stroke-width:1.6;}
+.kg .node-c5{fill:var(--surface); stroke:var(--c5); stroke-width:1.6;}
+
+/* legend chips */
+.leg{display:flex; gap:14px; flex-wrap:wrap; justify-content:center; margin-top:14px;
+  font-family:var(--mono); font-size:11px; color:var(--muted);}
+.leg span{display:inline-flex; align-items:center; gap:6px;}
+.leg i{width:11px; height:11px; border-radius:3px; display:inline-block; border:1.6px solid;}
+
+/* ---------- question-type cards ---------- */
+.qcards{display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin:22px 0;}
+@media(max-width:640px){ .qcards{grid-template-columns:1fr;} }
+.qcard{background:var(--surface); border:1px solid var(--border); border-top-width:3px;
+  border-radius:14px; padding:16px 18px;}
+.qcard.q1{border-top-color:var(--c2);} .qcard.q2{border-top-color:var(--c5);}
+.qcard.q3{border-top-color:var(--c3);} .qcard.q4{border-top-color:var(--c4);}
+.qcard .qk{font-family:var(--mono); font-size:10.5px; letter-spacing:.9px; text-transform:uppercase;}
+.qcard.q1 .qk{color:var(--c2);} .qcard.q2 .qk{color:var(--c5);}
+.qcard.q3 .qk{color:var(--c3);} .qcard.q4 .qk{color:var(--c4);}
+.qcard h4{margin:4px 0 6px; font-family:var(--display); font-size:16px;}
+.qcard .qq{font-size:13.5px; color:var(--fg); font-style:italic; margin:6px 0 8px;}
+.qcard .qa{font-size:13px; color:var(--muted); line-height:1.5; margin:0;}
+.qcard .qm{font-family:var(--mono); font-size:11px; color:var(--faint); margin-top:9px;}
+
+/* ---------- benchmark bars ---------- */
+.bench{display:flex; flex-direction:column; gap:11px; max-width:600px; margin:4px auto 0;}
+.brow{display:flex; align-items:center; gap:11px;}
+.blab{font-size:12.5px; color:var(--muted); flex:0 0 205px; text-align:right; line-height:1.3;}
+.btrack{flex:1 1 auto; height:20px; background:var(--panel); border:1px solid var(--border);
+  border-radius:6px; overflow:hidden;}
+.btrack > i{display:block; height:100%;}
+.bval{font-family:var(--mono); font-size:12px; font-weight:600; flex:0 0 40px; text-align:right;}
+@media(max-width:560px){ .blab{flex-basis:120px; font-size:11.5px;} }
+
+/* ---------- agent + toolset ---------- */
+.agentbox{display:flex; flex-direction:column; align-items:stretch; gap:7px;
+  border:1.5px solid var(--c1); border-radius:12px; padding:11px 12px; background:var(--surface); min-width:140px;}
+.agent-chip{display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  font-family:var(--display); font-weight:600; font-size:13px; color:var(--c1);}
+.toolset{display:flex; flex-direction:column; gap:5px;}
+.tool{font-family:var(--mono); font-size:10.5px; padding:4px 8px; border-radius:7px;
+  border:1px solid var(--border); color:var(--muted); background:var(--panel); text-align:center; transition:.2s;}
+.tool.active{border:1.5px solid var(--c1); color:var(--c1); font-weight:600; background:var(--surface);}
+.tool.dim{opacity:.38;}
+
+/* ---------- agent context window ---------- */
+.ctxwin{border:1px solid var(--border); border-radius:10px; background:var(--surface); padding:9px 10px; width:100%;}
+.ctxwin .cwh{font-family:var(--mono); font-size:9.5px; letter-spacing:.5px; color:var(--faint);
+  text-transform:uppercase; margin-bottom:7px; display:flex; justify-content:space-between; gap:8px;}
+.cwrow{display:flex; align-items:stretch; gap:7px; padding:4px 7px; border-radius:6px; margin-bottom:4px;
+  background:var(--panel); font-family:var(--mono); font-size:10px; color:var(--muted);}
+.cwrow .cwbar{width:3px; border-radius:2px; flex:0 0 auto;}
+.cwrow .cwt{flex:1 1 auto; line-height:1.4;}
+.cwrow .cwn{color:var(--faint); flex:0 0 auto; align-self:center;}
+.cwrow.new{background:var(--accent-soft); color:var(--fg); outline:1px solid var(--accent); outline-offset:-1px;}
+.cwrow.new .cwn{color:var(--accent);}
+.cwtot{display:flex; justify-content:space-between; font-family:var(--mono); font-size:10px;
+  color:var(--fg); border-top:1px dashed var(--border); margin-top:7px; padding-top:6px;}
+.callp{font-family:var(--mono); font-size:10.5px; line-height:1.55; text-align:left; color:var(--fg);
+  background:var(--surface); border:1px solid var(--c1); border-radius:8px; padding:8px 10px; white-space:pre-wrap;}
+.callp .fnm{color:var(--c1); font-weight:600;}
+.callp .arg{color:var(--c5);}
+
+/* ---------- camp subtitles ---------- */
+.camp{margin:52px 0 10px; padding-bottom:10px; border-bottom:1px solid var(--border);}
+.camp .eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:1.6px; text-transform:uppercase;}
+.camp .ctitle{font-family:var(--display); font-weight:600; font-size:22px; margin-top:4px; letter-spacing:-.2px;}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ 1 ============ -->
+  <h2><span class="kicker">01 · The idea</span>Nothing stores how your data connects</h2>
+  <p>Ask a question that stays inside one system — <em>"what's on order 8812?"</em> — and you get an answer in seconds. Ask one that crosses them — <em>"this supplier just slipped a week, which customers do I need to call?"</em> — and someone loses an afternoon opening four tools and rebuilding the chain from memory.</p>
+  <p>That second question is why ontologies exist. Your systems are good at recording <em>things</em> — parts, orders, shipments. Almost none of them record how those things <em>connect</em>, so the connections live in the heads of the five people who've been there a decade, and nowhere a machine can read. An <strong>ontology</strong> is where you write them down.</p>
+  <p>Gruber's textbook definition — <em>"an explicit specification of a conceptualization"</em> — is precise and useless the first time you read it. So here's a concrete one instead. Meet <strong>Meridian</strong>, a mid-size maker of industrial equipment; this is its ontology:</p>
+  <div class="diagram">
+    <svg class="kg" viewBox="0 0 600 250" role="img" aria-label="Ontology graph: Supplier supplies Part, Part used_in Product, Order contains Product, Order placed_by Customer">
+      <g class="edge" fill="none">
+        <line x1="78" y1="105" x2="196" y2="105"/>
+        <line x1="304" y1="105" x2="418" y2="105"/>
+        <line x1="470" y1="130" x2="470" y2="178"/>
+        <line x1="418" y1="203" x2="304" y2="203"/>
+        <path d="M228 82 C 214 46, 286 46, 272 82"/>
+      </g>
+      <text class="elab" x="136" y="98">supplies</text>
+      <text class="elab" x="342" y="98">used_in</text>
+      <text class="elab" x="476" y="160">contains</text>
+      <text class="elab" x="338" y="196">placed_by</text>
+      <text class="elab" x="222" y="42">subpart_of</text>
+      <g>
+        <rect class="node-c5" x="14" y="90" width="104" height="30" rx="15"/>
+        <text class="nlab" x="66" y="109" text-anchor="middle">Supplier</text>
+      </g>
+      <g>
+        <rect class="node-c3" x="196" y="90" width="108" height="30" rx="15"/>
+        <text class="nlab" x="250" y="109" text-anchor="middle">Part</text>
+      </g>
+      <g>
+        <rect class="node-c2" x="418" y="90" width="104" height="30" rx="15"/>
+        <text class="nlab" x="470" y="109" text-anchor="middle">Product</text>
+      </g>
+      <g>
+        <rect class="node-c4" x="418" y="188" width="104" height="30" rx="15"/>
+        <text class="nlab" x="470" y="207" text-anchor="middle">Order</text>
+      </g>
+      <g>
+        <rect class="node-c1" x="196" y="188" width="108" height="30" rx="15"/>
+        <text class="nlab" x="250" y="207" text-anchor="middle">Customer</text>
+      </g>
+    </svg>
+    <div class="leg">
+      <span><i style="border-color:var(--c5)"></i>Supplier</span>
+      <span><i style="border-color:var(--c3)"></i>Part</span>
+      <span><i style="border-color:var(--c2)"></i>Product</span>
+      <span><i style="border-color:var(--c4)"></i>Order</span>
+      <span><i style="border-color:var(--c1)"></i>Customer</span>
+    </div>
+  </div>
+  <p>Read it out loud and it's almost boring: a <strong>Supplier</strong> <em>supplies</em> a <strong>Part</strong>; a Part can be a <em>subpart_of</em> another Part; a Part is <em>used_in</em> a <strong>Product</strong>; an <strong>Order</strong> <em>contains</em> Products and is <em>placed_by</em> a <strong>Customer</strong>. Boring is the point. Everyone in the company now means the same thing by "part" and "order", and a machine can follow those arrows without guessing.</p>
+  <p>That's the whole idea. The rest of this post is what actually goes inside ontology, how it relates to a knowledge graph, where it pays for itself, how you build one with LLM, and — the part most write-ups skip — how you actually <em>use</em> it to answer questions.</p>
+
+  <!-- ============ 2 ============ -->
+  <h2><span class="kicker">02 · The obvious objection</span>It's not just a fancier ER diagram</h2>
+  <p>If you've ever designed a database, that picture looked awfully familiar. Boxes for entities, labelled lines for relationships, a note about cardinality — that's an <strong>ER diagram</strong>, and people have been drawing them since Peter Chen's paper in 1976.</p>
+  <p>The resemblance isn't a coincidence. ER modelling and the frame/semantic-network research that turned into ontologies came out of the same 1970s push to model meaning rather than storage. "Entity type / relationship type / cardinality" and "class / object property / cardinality restriction" are the same three ideas wearing different vocabulary. And I'll be honest up front: plenty of shipped enterprise ontologies really <em>are</em> ER diagrams living in a graph database, with the logic layer left thin — and they still pay off, because a shared vocabulary alone solves real problems.</p>
+  <p>But four differences are genuine, and they matter later in this post:</p>
+  <div class="tldr">
+    <h4>What an ontology has that an ER diagram doesn't</h4>
+    <p><strong style="color:var(--c2)">1 · Open world, not closed world.</strong> A database assumes anything not in the table is false — no row, no fact. An ontology assumes a missing fact is <em>unknown</em>, not untrue. Related: databases assume unique names (two different keys mean two different things), ontologies don't — which is exactly what lets you declare that Salesforce's <code>cust_id</code> and the billing system's <code>account</code> refer to the same real customer without restructuring either system.</p>
+    <p><strong style="color:var(--c1)">2 · Axioms infer; constraints reject.</strong> An <em>axiom</em> is just a rule declared in the model — it's the ontology world's word for one, borrowed from maths. "Every Part has exactly one primary Supplier" as a database constraint is a <code>UNIQUE</code> foreign key — record a second one and the insert fails. The same sentence in OWL is generative: record two, and rather than erroring the reasoner concludes the two names must denote <em>the same supplier</em>. Same English, opposite behaviour — and it surprised so many people that SHACL exists to bring the reject-it behaviour back.</p>
+    <p><strong style="color:var(--c5)">3 · There's a reasoner.</strong> An ER diagram has no runtime. Transitivity, subclass inheritance, property chains — these get <em>computed</em>. The "which customers are affected" walk in §07 is a recursive query you'd hand-write per question in SQL; here it falls out of one axiom.</p>
+    <p><strong style="color:var(--c4)">4 · It sits above your systems, not inside one.</strong> An ER model describes one application's storage and is prescriptive — it's a build order for tables. An ontology describes a domain across every system and is descriptive — it says what's true, not where the bytes live. Practical consequence: changing an ER schema is a migration; extending an ontology is usually additive.</p>
+  </div>
+  <p>The one-line version: <strong>an ontology is an ER diagram plus an open-world assumption plus a reasoner.</strong> Strip those two away and you have an ER diagram — which, again, is a perfectly respectable thing to ship.</p>
+  
+  <!-- ============ 3 ============ -->
+  <h2><span class="kicker">03 · The anatomy</span>What's actually in one, and what it's written in</h2>
+  <p>So if you were handed an ontology file tomorrow, what would be in it? Six things. The first two are the ones everybody draws; the last four are what separate a real ontology from a picture.</p>
+  <div class="diagram">
+    <div class="layers">
+      <div class="layer l1"><span class="lnum">1</span><span class="ltitle">Classes</span><span class="ldesc">The kinds of things that exist — <code>Supplier</code>, <code>Part</code>, <code>Product</code>, <code>Order</code>, <code>Customer</code>. Concepts that span every system you own, not rows in one table. Usually arranged in a subclass hierarchy: a <code>CastingPart</code> is a <code>Part</code>.</span></div>
+      <div class="layer l2"><span class="lnum">2</span><span class="ltitle">Relationships</span><span class="ldesc">Named, directed links between classes — <code>supplies</code>, <code>used_in</code>, <code>placed_by</code>. In RDF these are <em>object properties</em>, and each declares a <em>domain</em> (what it goes from) and a <em>range</em> (what it goes to). This is where an ontology earns its keep; a class list alone is a glossary.</span></div>
+      <div class="layer l3"><span class="lnum">3</span><span class="ltitle">Attributes</span><span class="ldesc">The plain values a thing carries — <code>Part.lead_time_days</code>, <code>Order.value</code>, <code>Customer.tier</code>. Called <em>data properties</em>, with a datatype and often an allowed range.</span></div>
+      <div class="layer l4"><span class="lnum">4</span><span class="ltitle">Axioms &amp; constraints</span><span class="ldesc">The rules — "every Part has at least one Supplier", "<code>subpart_of</code> is transitive", "a Part is never a Product". Two flavours worth separating: <em>axioms</em> that let a reasoner derive new facts, and <em>shapes</em> that validate incoming data and reject what doesn't fit.</span></div>
+      <div class="layer l5"><span class="lnum">5</span><span class="ltitle">Identifiers</span><span class="ldesc">Every class, relationship and instance gets a globally unique ID — an IRI, which just looks like a URL. Boring but load-bearing: it's what lets two departments (or two companies) merge models without name collisions.</span></div>
+      <div class="layer l0"><span class="lnum">6</span><span class="ltitle">Mappings &amp; metadata</span><span class="ldesc">How each class ties back to real source data (this table, that API field), plus who owns it, when it changed, and which version this is. Skipped in tutorials, non-negotiable in production.</span></div>
+    </div>
+  </div>
+
+  <h3>And how it's written down</h3>
+  <p>Two families cover most of what you'll meet, and they're different bets rather than dialects. Here's one slice of Meridian's ontology written each way:</p>
+  <div class="diagram">
+    <div class="split" style="align-items:flex-start;">
+      <div class="scol" style="max-width:330px;">
+        <div class="colcap">1 · the standards stack · turtle</div>
+        <div class="md k2">
+<div class="mtx"><span class="mh1">:Part</span>&nbsp;&nbsp;&nbsp; a owl:Class .</div>
+<div class="mtx"><span class="mkey">:used_in</span> a owl:ObjectProperty ;</div>
+<div class="mtx">&nbsp;&nbsp;rdfs:domain :Part ;</div>
+<div class="mtx">&nbsp;&nbsp;rdfs:range&nbsp; :Product .</div>
+<div class="mtx"><span class="mkey">:subpart_of</span> a owl:TransitiveProperty .</div>
+<div class="mcm"># + a SHACL shape to validate</div>
+        </div>
+      </div>
+      <div class="scol" style="max-width:330px;">
+        <div class="colcap">2 · a vendor object model</div>
+        <div class="md k4">
+<div class="mtx"><span class="mh1">object type</span> Part</div>
+<div class="mtx">&nbsp;&nbsp;key sku · from erp.parts_tbl</div>
+<div class="mtx"><span class="mh1">link type</span> &nbsp;&nbsp;usedIn</div>
+<div class="mtx">&nbsp;&nbsp;Part &rarr; Product</div>
+<div class="mtx"><span class="mh1">action type</span> notifyCustomer</div>
+<div class="mtx">&nbsp;&nbsp;applies to Order</div>
+<div class="mcm">// "tell them it'll be late"</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p>Same model, two philosophies. <strong>RDF/OWL</strong> (plus <a href="https://www.w3.org/TR/shacl/" target="_blank" rel="noopener">SHACL</a> to validate and SPARQL to query) is the W3C stack — portable, genuinely reasoner-backed, and the only place where "transitive" is something you <em>declare</em> rather than a query you remember to write. The cost is verbosity and a twenty-year reputation for being academic. A <strong>vendor object model</strong> — <a href="https://www.palantir.com/docs/foundry/ontology/overview" target="_blank" rel="noopener">Palantir's</a> object / link / action types, or a metrics layer like dbt's — hands you mappings, permissions and tooling out of the box, in exchange for living on someone's platform.</p>
+  <p>One thing to notice: only the vendor column has an <code>action type</code>. <code>notifyCustomer</code> is about as simple as one gets — <em>tell a customer their order is going to be late</em>. It's a verb, so that model records what you can <em>do</em>, not just what exists. That turns out to matter, and it comes back in §05.</p>
+  
+  <!-- ============ 4 ============ -->
+  <h2><span class="kicker">04 · The pair</span>Ontology is the blueprint; the knowledge graph is the building</h2>
+  <p>This is the single most common point of confusion, so let's kill it cleanly. The <strong>ontology</strong> is the schema — classes, relationships and rules. Fill it with actual suppliers and actual orders and you get a <strong>knowledge graph</strong> — the instances.</p>
+  <p>The sizes are wildly different, and that asymmetry is the useful part: the ontology is a few hundred lines a human can hold in their head and it changes slowly; the knowledge graph is millions of nodes and it changes constantly. Keeping them separate is what lets you validate a churning dataset against a small, trusted model.</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">SCHEMA → GRAPH · AND TWO WAYS TO FILL IT</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:250px;">
+              <div class="colcap">the ontology</div>
+              <div class="md k2">
+<span class="fn">types and rules only</span>
+<div class="mtx"><span class="mh1">Supplier</span> &nbsp;<span class="mkey">supplies</span>&rarr;&nbsp; <span class="mh1">Part</span></div>
+<div class="mtx"><span class="mh1">Part</span> &nbsp;<span class="mkey">used_in</span>&rarr;&nbsp; <span class="mh1">Product</span></div>
+<div class="mtx"><span class="mh1">Order</span> &nbsp;<span class="mkey">contains</span>&rarr;&nbsp; <span class="mh1">Product</span></div>
+<div class="mtx"><span class="mh1">Order</span> &nbsp;<span class="mkey">placed_by</span>&rarr;&nbsp; <span class="mh1">Customer</span></div>
+<div class="mtx">&nbsp;</div>
+<div class="mcm">rule: subpart_of is transitive</div>
+<div class="mcm">rule: every Part needs a Supplier</div>
+              </div>
+              <div class="blbl" style="margin-top:8px; text-align:center;">~200 lines · changes yearly</div>
+            </div>
+            <div class="mid"><div class="midlbl">not a single<br>real thing<br>in here yet</div></div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>The ontology on its own is <b>completely empty of data</b>. It says a Supplier <em>can</em> supply a Part. It doesn't know a single supplier's name. This is the artifact a human writes and signs off on.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:215px;">
+              <div class="colcap">the ontology</div>
+              <div class="md k2">
+<span class="fn">types</span>
+<div class="mtx"><span class="mh1">Supplier</span> <span class="mkey">supplies</span>&rarr; <span class="mh1">Part</span></div>
+<div class="mtx"><span class="mh1">Part</span> <span class="mkey">used_in</span>&rarr; <span class="mh1">Product</span></div>
+              </div>
+            </div>
+            <div class="mid"><div class="midlbl">populate</div><div class="arrow2">→</div></div>
+            <div class="scol" style="max-width:290px;">
+              <div class="colcap">the knowledge graph</div>
+              <div class="md k1">
+<span class="fn">real instances, conforming to the types</span>
+<div class="mtx">Kessler-GmbH <span class="mkey">supplies</span> <span class="mval">Bearing-A40</span></div>
+<div class="mtx">Bearing-A40 <span class="mkey">used_in</span> <span class="mval">Pump-X9</span></div>
+<div class="mtx">Bearing-A40 <span class="mkey">used_in</span> <span class="mval">Pump-X7</span></div>
+<div class="mtx">Order-8812 <span class="mkey">contains</span> <span class="mval">Pump-X9</span></div>
+<div class="mtx">Order-8812 <span class="mkey">placed_by</span> <span class="mval">Halden-Marine</span></div>
+<div class="mtx"><span class="mcm">… 4.8M more edges</span></div>
+              </div>
+              <div class="blbl" style="margin-top:8px; text-align:center;">millions of rows · changes hourly</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>Now pour in real instances and you have a <b>knowledge graph</b>. Every edge conforms to a relationship the ontology declared — that's the contract, and it's checkable.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:flex-start;">
+            <div class="scol" style="max-width:270px;">
+              <div class="colcap">route A · materialize</div>
+              <div class="stack" style="gap:7px; align-items:stretch;">
+                <div class="pill mono" style="margin:0;">ERP · WMS · CRM · PDFs</div>
+                <div class="midlbl" style="text-align:center;">↓ &nbsp;ETL + extraction&nbsp; ↓</div>
+                <div class="pill" style="margin:0; border-color:var(--c1); color:var(--c1);">a real graph store, physically holding the triples</div>
+              </div>
+              <div class="blbl" style="margin-top:9px;">+ fast traversal, real reasoning<br>− a copy to keep in sync</div>
+            </div>
+            <div class="scol" style="max-width:270px;">
+              <div class="colcap">route B · virtualize</div>
+              <div class="stack" style="gap:7px; align-items:stretch;">
+                <div class="pill mono" style="margin:0;">ERP · WMS · CRM (left in place)</div>
+                <div class="midlbl" style="text-align:center;">↓ &nbsp;declarative mappings&nbsp; ↓</div>
+                <div class="pill" style="margin:0; border-color:var(--c2); color:var(--c2);">a virtual graph — queries rewritten to SQL at runtime</div>
+              </div>
+              <div class="blbl" style="margin-top:9px;">+ zero copies, always current<br>− limited reasoning, joins can hurt</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>Two ways to fill it, and most write-ups only mention the first. <b>Materialize</b> and you build a real graph. <b>Virtualize</b> and no data moves at all — the ontology is a live view over the databases you already have, and your graph query is rewritten into SQL on the fly.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>That third step deserves a name, because it's a whole discipline: <strong>ontology-based data access</strong>. You declare mappings (in RDF-land, the standard is <a href="https://www.w3.org/TR/r2rml/" target="_blank" rel="noopener">R2RML</a>) that say "the <code>parts</code> table's <code>sku</code> column is a <code>:Part</code>", and a query engine turns SPARQL over the ontology into SQL over the real tables. Nothing is copied and nothing goes stale. The trade-off is that you inherit your source databases' performance, and the heavier reasoning tricks stop being practical. Plenty of production systems run a hybrid — virtualize the transactional stuff, materialize the extracted-from-documents stuff.</p>
+
+  <!-- ============ 5 ============ -->
+  <h2><span class="kicker">05 · The payoff</span>Four places it actually earns its keep</h2>
+  <p>Enough anatomy — what does it get you? I'd argue there are exactly four wins, and they build on each other. Every enterprise has at least the first two.</p>
+
+  <h3>1 · Integration by mapping instead of by project</h3>
+  <p>The default enterprise state: every system has its own model, "customer" in the CRM isn't "account" in billing isn't "buyer" in the order system, and joining them is a bespoke project every single time — <em>n</em> systems means <em>n²</em> point-to-point integrations. With an ontology each source maps <em>once</em> to shared concepts, and after that everything speaks the same language. New system? It plugs into a model that already exists.</p>
+
+  <h3>2 · Inference — facts nobody wrote down</h3>
+  <p>This is the one a pile of tables genuinely cannot do. Because relationships are typed and rules are declared, a machine can follow the arrows and derive conclusions that were never stored anywhere. "Which customers are exposed if Kessler-GmbH misses a shipment?" is not in any table; it's four hops and a transitivity rule away. I'll walk that whole chain in §07.</p>
+
+  <h3>3 · One definition, enforced</h3>
+  <p>"Active customer" gets defined once, as a rule, instead of ten times across ten dashboards that quietly disagree until someone challenges the numbers. And because the definition is machine-readable, a validator can flag the records that violate it — an ownerless part, an order with no customer — rather than waiting for a human to notice.</p>
+
+  <h3>4 · Grounding for AI</h3>
+  <p>Point an agent at raw tables and it guesses what things mean, then confidently invents relationships. Point it at a typed graph and it traverses real, named edges — and can show you the path it took. This is the newest reason and the one driving the current wave of interest; §08 has the numbers.</p>
+
+  <div class="note"><b>The Palantir wrinkle: model the verbs too.</b> Most ontology writing stops at nouns. <a href="https://blog.palantir.com/connecting-ai-to-decisions-with-the-palantir-ontology-c73f7b0a1a72" target="_blank" rel="noopener">Palantir's framing</a> splits the model into three parts — <em>semantic</em> (the objects, properties and links), <em>kinetic</em> (the <b>actions</b> people and systems can take on those objects) and <em>dynamic</em> (the logic and models bound to them). Their argument is that a warehouse records what happened but never what was <em>decided</em>, so the reasoning and the resulting action are lost. Putting <code>notifyCustomer</code> in the model next to <code>Order</code> means an agent can be handed a governed verb, not just a read-only view. Whether or not you buy the platform, it's the most useful idea in their write-up — and it's why the vendor column back in §03 had an <code>action type</code> in it.</div>
+
+  <h3>And when not to bother</h3>
+  <p>Being even-handed: if you have one application, one clean schema, and nobody asking cross-system questions, an ontology is pure overhead. A database already models that fine. The failure mode is real and has a name — <em>boiling the ocean</em>, a two-year effort to model everything perfectly before anything ships. A tiny ontology in production beats a magnificent one in a slide deck. More on the honest ledger in §09.</p>
+
+  <!-- ============ 6 ============ -->
+  <h2><span class="kicker">06 · The build</span>Two ways to make one with an LLM</h2>
+  <p>Here's the history in one sentence: for thirty years ontologies were right in theory and dead in practice, because building one meant knowledge engineers who spoke OWL and domain experts who knew the business, locked in a room for months. That's the wall LLMs knocked down — but <em>how</em> you use them splits into two genuinely different approaches, with different failure modes.</p>
+
+  <div class="camp">
+    <div class="eyebrow" style="color:var(--c2)">Approach 1</div>
+    <div class="ctitle">Schema-first — you write the model, the LLM only fills it</div>
+  </div>
+  <p>The core idea: a human authors the ontology — it's small — and the LLM is never allowed to invent a type. It reads documents and emits instances, constrained to the classes and relationships you declared. Everything it produces is validated against the schema before it lands. This is the lowest-hallucination option and the one I'd default to.</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">SCHEMA-FIRST · A MESSY EMAIL BECOMES TYPED FACTS</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:230px;">
+              <div class="colcap">the ontology · written by a human</div>
+              <div class="md k2">
+<span class="fn">allowed vocabulary</span>
+<div class="mtx"><span class="mh1">classes:</span> Supplier, Part,</div>
+<div class="mtx">&nbsp;&nbsp;Product, Order, Customer</div>
+<div class="mtx">&nbsp;</div>
+<div class="mtx"><span class="mh1">edges:</span> supplies, subpart_of,</div>
+<div class="mtx">&nbsp;&nbsp;used_in, contains, placed_by</div>
+              </div>
+            </div>
+            <div class="ar">+</div>
+            <div class="scol" style="max-width:250px;">
+              <div class="colcap">raw source · one supplier email</div>
+              <div class="sdoc">
+                <div class="dt">RE: A40 bearing delay</div>
+                <div class="db">Hi — heads up, <b>Kessler</b> can't ship the <b>A40 bearings</b> until the 14th. That's the part in the <b>X9 pump</b> assembly, and I think the <b>X7</b> uses it too. <b>Halden Marine</b>'s order is the one at risk.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>Two inputs. On the left, the small ontology a person wrote and owns. On the right, a real email — free text, names scattered through a paragraph. Multiply the right side by a few hundred thousand and you see why humans never finished tagging these.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:150px;">
+              <div class="colcap">the email</div>
+              <div class="pill mono" style="margin:0;">free text</div>
+            </div>
+            <div class="mid">
+              <div class="llmchip"><svg width="14" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c2)"/></svg>LLM</div>
+              <div class="prompt">Extract entities and relationships <b>using only the classes and edges in the ontology below.</b> If something doesn't fit, return it under <code>unmapped</code> — do not invent a type. Emit triples.</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:255px;">
+              <div class="colcap">extracted triples</div>
+              <div class="md k1">
+<span class="fn">subject — predicate — object</span>
+<div class="mtx">Kessler-GmbH <span class="mkey">supplies</span> <span class="mval">Bearing-A40</span></div>
+<div class="mtx">Bearing-A40 <span class="mkey">used_in</span> <span class="mval">Pump-X9</span></div>
+<div class="mtx">Bearing-A40 <span class="mkey">used_in</span> <span class="mval">Pump-X7</span></div>
+<div class="mtx">Order-8812 <span class="mkey">placed_by</span> <span class="mval">Halden-Marine</span></div>
+<div class="mtx">&nbsp;</div>
+<div class="mcm">unmapped: "until the 14th"</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>The model reads the prose and emits typed triples — <b>constrained by the ontology</b>, so it can only use types that exist. That constraint is what stops it inventing a "bearing situation" class. Note the escape hatch: anything that doesn't fit goes to <code>unmapped</code> rather than getting forced into the nearest type.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:265px;">
+              <div class="colcap">validate every triple against the schema</div>
+              <div class="stack" style="gap:6px; align-items:stretch;">
+                <div class="pill mono" style="margin:0; border-color:var(--c1); color:var(--c1);">✓ 4 triples match declared edges</div>
+                <div class="pill mono" style="margin:0; border-color:var(--c4); color:var(--c4);">⚑ "Kessler-GmbH" — new Supplier, unseen</div>
+                <div class="pill mono" style="margin:0; border-color:var(--c4); color:var(--c4);">⚑ "until the 14th" — no matching property</div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:200px;">
+              <div class="colcap">outcome</div>
+              <div class="stack" style="gap:7px; align-items:stretch;">
+                <div class="pill" style="margin:0; border-color:var(--c1); color:var(--c1);">4 edges into the graph</div>
+                <div class="pill" style="margin:0; border-color:var(--c4); color:var(--c4);">2 items held for a human</div>
+              </div>
+              <div class="blbl" style="margin-top:9px;">the flagged date is a signal:<br>the ontology may need a<br><code>promised_date</code> property</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>A validator checks each triple before it lands. Clean ones flow in; a brand-new supplier and an unmappable date get held. <b>The model proposes, the schema and a human dispose</b> — and the flagged leftovers are how you learn what the ontology is still missing.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>Strong option, and the one with the best evidence behind it — this is essentially what <a href="https://arxiv.org/abs/2308.02357" target="_blank" rel="noopener">Text2KGBench</a> measures and what ontology-grounded RAG systems assume. The limitation is right there in the name: it can only find what you thought to model. If your ontology has no concept of "regulatory hold", every mention of one becomes <code>unmapped</code> noise. Which is what the next approach is for.</p>
+
+  <div class="camp">
+    <div class="eyebrow" style="color:var(--c5)">Approach 2</div>
+    <div class="ctitle">Schema-free — let the LLM invent types, then abstract them</div>
+  </div>
+  <p>Flip it around. Give the LLM no vocabulary at all and let it name whatever entities and relations it sees, document by document. You get a sprawling mess of near-duplicate types — <code>supplier</code>, <code>vendor</code>, <code>parts supplier</code> — and then a second pass clusters and generalises them into an actual schema. <a href="https://arxiv.org/abs/2505.23628" target="_blank" rel="noopener">AutoSchemaKG</a> is the clearest recent example of inducing a schema this way rather than authoring it. <a href="https://hzjken.github.io/graphrag-and-raptor.html" target="_blank" rel="noopener">GraphRAG</a> sits nearby but isn't quite the same thing — it ships with a short list of generic default entity types you're expected to replace, so it's loosely typed rather than genuinely schema-free.</p>
+  <div class="diagram">
+    <div class="split" style="align-items:center;">
+      <div class="scol" style="max-width:210px;">
+        <div class="colcap">pass 1 · extract with no schema</div>
+        <div class="md">
+<span class="fn">whatever the LLM sees</span>
+<div class="mtx">Kessler <span class="mkey">is_vendor_for</span> A40</div>
+<div class="mtx">Kessler <span class="mkey">supplies</span> A40</div>
+<div class="mtx">Kessler <span class="mkey">ships</span> bearings</div>
+<div class="mtx">Bosch <span class="mkey">provider_of</span> seals</div>
+<div class="mtx"><span class="mcm">… 340 relation names</span></div>
+        </div>
+      </div>
+      <div class="mid">
+        <div class="midlbl">cluster +<br>generalise</div>
+        <div class="arrow2">→</div>
+      </div>
+      <div class="scol" style="max-width:230px;">
+        <div class="colcap">pass 2 · induced schema</div>
+        <div class="md k1">
+<span class="fn">collapsed into types</span>
+<div class="mtx"><span class="mh1">Supplier</span> <span class="mkey">supplies</span>&rarr; <span class="mh1">Part</span></div>
+<div class="mcm">&nbsp;&nbsp;← is_vendor_for, ships,</div>
+<div class="mcm">&nbsp;&nbsp;&nbsp;&nbsp;provider_of, sources</div>
+<div class="mtx">&nbsp;</div>
+<div class="mtx"><span class="mh1">Part</span> <span class="mkey">used_in</span>&rarr; <span class="mh1">Product</span></div>
+<div class="mcm">&nbsp;&nbsp;← goes_into, component_of</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p>The appeal is genuine discovery: it surfaces concepts nobody thought to model, which is exactly what a schema-first pipeline is blind to. The costs are that quality now rests entirely on the clustering step, there's no validation gate anywhere, and open-domain runs tend to over-fragment — you end up with hundreds of entity types where a few dozen would do, and collapsing them is its own project. Useful, but not something I'd point at a production graph unsupervised.</p>
+  <div class="note"><b>These two aren't rivals.</b> The practical pattern is to run schema-free <em>first</em>, on a sample, to discover what's actually in your corpus — then hand-curate that into a real ontology and switch to schema-first for the production run. Discovery mode and production mode, not competing philosophies.</div>
+
+  <h3>So what would I actually do?</h3>
+  <p>Here's the loop I'd actually run:</p>
+  <ul class="moves">
+    <li><strong>Discover schema-free on a sample.</strong> Run an LLM with no vocabulary over a few hundred documents to find out what's genuinely in your corpus, including the concepts you'd never have guessed.</li>
+    <li><strong>Curate that into a small ontology by hand.</strong> This is the part that stays human. Keep it tiny — tie every class to a real question someone is asking, and cut anything that fails that test.</li>
+    <li><strong>Extract schema-first at scale, with a validation gate.</strong> Constrain the model to your vocabulary, validate every triple, and route the rejects to a review queue — the rejects are your backlog for the next schema revision.</li>
+    <li><strong>Borrow public identity where you can.</strong> Link entities out to Wikidata or DBpedia instead of hand-building a class hierarchy that already exists.</li>
+    <li><strong>Write the axioms yourself.</strong> There are maybe twenty of them, and they're the highest-stakes part of the whole model.</li>
+  </ul>
+  <div class="note"><b>The one rule that keeps this safe.</b> LLMs <em>propose</em>; the ontology and a human <em>ratify</em>. The schema is small and high-stakes, so a person signs off on changes to it. The data is huge, so extraction is automated — but every triple is validated against the schema on the way in. Skip that gate and you get a confident hallucination hardening into an authoritative-looking fact that every later query inherits.</div>
+
+  <!-- ============ 7 ============ -->
+  <h2><span class="kicker">07 · Putting it to work</span>The four kinds of question it answers</h2>
+  <p>You've built the thing. What do you point at it? In practice the questions fall into four types, and they're answered by genuinely different machinery — which is worth knowing, because people often build an ontology expecting it to help with type 3 and are surprised when it doesn't, on its own.</p>
+  <div class="qcards">
+    <div class="qcard q1">
+      <div class="qk">Type 1 · Lookup</div>
+      <h4>Follow the edges</h4>
+      <p class="qq">"Who supplies the A40 bearing, and what's the lead time?"</p>
+      <p class="qa">A direct traversal. One or two hops from a known node. This is what a graph database is fastest at, and honestly a normal SQL join would do it too.</p>
+      <p class="qm">→ SPARQL traversal</p>
+    </div>
+    <div class="qcard q2">
+      <div class="qk">Type 2 · Inference</div>
+      <h4>Derive what nobody stored</h4>
+      <p class="qq">"If Kessler slips a week, which customers are exposed?"</p>
+      <p class="qa">Multi-hop, and it needs the rules — transitivity through sub-assemblies means the chain has no fixed length. <strong>This is the one an ontology is genuinely uniquely good at.</strong></p>
+      <p class="qm">→ reasoner + traversal</p>
+    </div>
+    <div class="qcard q3">
+      <div class="qk">Type 3 · Aggregation</div>
+      <h4>Compute a number</h4>
+      <p class="qq">"What's our total exposed order value this quarter?"</p>
+      <p class="qa">Sums, counts, group-bys. The graph doesn't magically do arithmetic — but the ontology gives the query generator correct joins and one agreed definition of "exposed".</p>
+      <p class="qm">→ query generation over the model</p>
+    </div>
+    <div class="qcard q4">
+      <div class="qk">Type 4 · Action</div>
+      <h4>Change something</h4>
+      <p class="qq">"Reallocate stock from the X7 line to cover Order-8812."</p>
+      <p class="qa">Not a question at all — a governed write, back into the source systems. Only exists if your model includes verbs, per §05.</p>
+      <p class="qm">→ action type / writeback</p>
+    </div>
+  </div>
+
+  <h3>Type 2, in full — the one that justifies the whole exercise</h3>
+  <p>Let's walk the inference case properly, because it's the one you can't fake with a join. A supplier emails to say a shipment slips. Nobody has ever written down which customers that affects — the fact doesn't exist anywhere. Watch it get computed:</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">INFERENCE · WHICH CUSTOMERS ARE ACTUALLY EXPOSED?</span><span class="counter"></span></div>
+    <div class="stage">
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:255px;">
+              <div class="colcap">what's actually stored</div>
+              <div class="md">
+<span class="fn">asserted facts</span>
+<div class="mtx">Kessler-GmbH <span class="mkey">supplies</span> Bearing-A40</div>
+<div class="mtx">Bearing-A40 <span class="mkey">subpart_of</span> Rotor-Assy</div>
+<div class="mtx">Rotor-Assy <span class="mkey">used_in</span> Pump-X9</div>
+<div class="mtx">Order-8812 <span class="mkey">contains</span> Pump-X9</div>
+<div class="mtx">Order-8812 <span class="mkey">placed_by</span> Halden-Marine</div>
+              </div>
+            </div>
+            <div class="mid"><div class="midlbl">plus<br>one<br>rule</div><div class="arrow2">→</div></div>
+            <div class="scol" style="max-width:210px;">
+              <div class="colcap">rule in the ontology</div>
+              <div class="jsonout" style="margin:0;">subpart_of is <span class="jw">transitive</span>
+
+if a Part is delayed
+ and that Part is used_in
+ a Product, then every
+ Order containing it is
+ <span class="jw">at_risk</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>Five local facts and one general rule. Nowhere does it say Halden Marine is at risk — nobody connected those dots, and nobody maintains a "what-breaks-if" spreadsheet.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <svg class="kg" viewBox="0 0 600 250" role="img" aria-label="The delay propagating from Supplier through Part and Product to Order and Customer">
+            <g class="edge" fill="none">
+              <line class="hot" x1="78" y1="105" x2="196" y2="105"/>
+              <line class="hot" x1="304" y1="105" x2="418" y2="105"/>
+              <line class="hot" x1="470" y1="130" x2="470" y2="178"/>
+              <line class="hot" x1="418" y1="203" x2="304" y2="203"/>
+              <path class="hot" d="M228 82 C 214 46, 286 46, 272 82"/>
+            </g>
+            <text class="elab" x="136" y="98">supplies</text>
+            <text class="elab" x="342" y="98">used_in</text>
+            <text class="elab" x="476" y="160">contains</text>
+            <text class="elab" x="338" y="196">placed_by</text>
+            <text class="elab" x="216" y="42">subpart_of *</text>
+            <g>
+              <rect class="node-c5" x="14" y="90" width="104" height="30" rx="15"/>
+              <text class="nlab" x="66" y="104" text-anchor="middle">Kessler</text>
+              <text class="ilab" x="66" y="116" text-anchor="middle">delayed</text>
+            </g>
+            <g>
+              <rect class="node-c3" x="196" y="90" width="108" height="30" rx="15"/>
+              <text class="nlab" x="250" y="104" text-anchor="middle">Bearing-A40</text>
+              <text class="ilab" x="250" y="116" text-anchor="middle">→ Rotor-Assy</text>
+            </g>
+            <g>
+              <rect class="node-c2" x="418" y="90" width="104" height="30" rx="15"/>
+              <text class="nlab" x="470" y="104" text-anchor="middle">Pump-X9</text>
+              <text class="ilab" x="470" y="116" text-anchor="middle">blocked</text>
+            </g>
+            <g>
+              <rect class="node-c4" x="418" y="188" width="104" height="30" rx="15"/>
+              <text class="nlab" x="470" y="202" text-anchor="middle">Order-8812</text>
+              <text class="ilab" x="470" y="214" text-anchor="middle">at risk</text>
+            </g>
+            <g>
+              <rect class="node-c1" x="196" y="188" width="108" height="30" rx="15"/>
+              <text class="nlab" x="250" y="202" text-anchor="middle">Halden Marine</text>
+              <text class="ilab" x="250" y="214" text-anchor="middle">exposed</text>
+            </g>
+          </svg>
+          <div class="pill mono" style="max-width:480px; margin-top:4px;">the <span style="color:var(--c4)">*</span> on subpart_of is the transitivity — the chain has no fixed length</div>
+        </div>
+        <p class="cap"><span class="n">2</span>The reasoner walks it. Because <code>subpart_of</code> is transitive, the delay ripples through however many layers of sub-assembly exist — four levels deep or one, the same rule covers it. This is <b>inference</b>: new true facts, computed rather than stored.</p>
+      </div>
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:center;">
+            <div class="scol" style="max-width:215px;">
+              <div class="colcap">the question</div>
+              <div class="pill hl" style="margin:0;">"Kessler just slipped a week — who does that hit, and how badly?"</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:275px;">
+              <div class="colcap">derived answer · none of it hand-written</div>
+              <div class="md k1">
+<span class="fn">inferred</span>
+<div class="mtx">Blocked products: <span class="mval">Pump-X9, Pump-X7</span></div>
+<div class="mtx">Orders at risk: <span class="mval">8812, 8840, 8851</span></div>
+<div class="mtx">Customers exposed: <span class="mval">Halden Marine,</span></div>
+<div class="mtx">&nbsp;&nbsp;<span class="mval">Nordvik AS</span> <span class="mcm">(both tier-1)</span></div>
+<div class="mtx">Exposed order value: <span class="mval">€1.24M</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>Blast radius, customers, and the euro figure — all from traversing typed edges and applying one rule. And crucially the system can <b>show its path</b>, so a human can check the reasoning rather than trusting a number.</p>
+      </div>
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <p>One line to keep: <strong>a database tells you what you stored; an ontology tells you what follows from it.</strong></p>
+
+  <h3>Type 3, honestly — where the data-query question gets interesting</h3>
+  <p>Now the case people ask about most, and where I want to be careful not to oversell. "What's our total exposed order value this quarter?" is arithmetic. A graph doesn't do arithmetic better than a database does. So what's the ontology actually contributing?</p>
+  <p>The answer is that it's not helping the <em>computer</em> compute — it's helping the <em>LLM write a correct query</em>. Ask a model to write SQL against 200 raw tables named <code>ord_hdr_t</code> and <code>cust_mstr</code> and it has to guess which join is right and what "exposed" means. Give it a model where <code>Order</code> <code>placed_by</code> <code>Customer</code> is declared and "exposed" is a defined rule, and most of the guessing disappears.</p>
+  <div class="diagram">
+    <div class="split" style="align-items:flex-start;">
+      <div class="scol" style="max-width:275px;">
+        <div class="colcap">without a model · guess the joins</div>
+        <div class="md k4">
+<span class="fn">LLM sees raw schema</span>
+<div class="mtx">ord_hdr_t (id, cust_ref, dt, amt)</div>
+<div class="mtx">cust_mstr (cno, nm, seg, flag_a)</div>
+<div class="mtx">ord_ln (oid, sku, qty)</div>
+<div class="mtx">&nbsp;</div>
+<div class="mcm">is cust_ref = cno? probably.</div>
+<div class="mcm">is flag_a "active"? no idea.</div>
+<div class="mcm">what counts as "exposed"? guess.</div>
+        </div>
+        <div class="blbl" style="margin-top:9px; color:var(--c4);">plausible SQL, quietly wrong answer</div>
+      </div>
+      <div class="ar">vs</div>
+      <div class="scol" style="max-width:275px;">
+        <div class="colcap">with the ontology · joins are declared</div>
+        <div class="md k1">
+<span class="fn">LLM sees the model</span>
+<div class="mtx">Order <span class="mkey">placed_by</span> Customer</div>
+<div class="mtx">Order.value : money</div>
+<div class="mtx">Customer.tier : {1,2,3}</div>
+<div class="mtx">&nbsp;</div>
+<div class="mcm">"exposed" is a defined rule:</div>
+<div class="mtx">&nbsp;&nbsp;Order at_risk ∧ status ≠ shipped</div>
+        </div>
+        <div class="blbl" style="margin-top:9px; color:var(--c1);">the join is given, not inferred</div>
+      </div>
+    </div>
+  </div>
+  <p>This distinction has been measured, and the numbers are the strongest argument in this whole post — which is where §08 goes.</p>
+
+  <!-- ============ 8 ============ -->
+  <h2><span class="kicker">08 · The AI part</span>How it plugs into agents and RAG</h2>
+  <p>Two separate stories here, often muddled together. One is about <em>retrieval</em> — feeding an LLM better context. The other is about <em>querying</em> — getting a correct number out of a database. The ontology helps with both, differently.</p>
+
+  <h3>For RAG: retrieval that follows relationships</h3>
+  <p>Vanilla RAG embeds your question, grabs the nearest text chunks, and hopes the answer is in there. It has no idea that Bearing-A40 and Pump-X9 are <em>related</em>, because relationships aren't something embeddings represent well. Graph retrieval lands on the right node and then <em>traverses typed edges</em> to pull in the connected neighbourhood — which is the exact thing chunk similarity can't do. I've covered the mechanics of that in the <a href="https://hzjken.github.io/graphrag-and-raptor.html" target="_blank" rel="noopener">GraphRAG post</a>, so I won't repeat it; the ontology's contribution is that the graph being traversed has <em>meaningful, validated</em> types instead of whatever the extractor happened to invent.</p>
+  <p>Does that grounding actually help? <a href="https://aclanthology.org/2025.emnlp-main.1674/" target="_blank" rel="noopener">OG-RAG</a> (EMNLP 2025) anchors retrieval in a domain ontology and reports <strong>+55% fact recall and +40% response correctness</strong> against standard RAG across four different LLMs, plus faster attribution back to sources. Worth reading with the usual caution about self-reported gains, but the direction is consistent with everything else here.</p>
+
+  <h3>For agents: the ontology becomes the tool surface</h3>
+  <p>This is the more interesting shift. An enterprise agent doesn't want raw table access — that's both dangerous and useless. What it wants is a small set of typed tools over a model it can understand. The ontology <em>is</em> that surface: objects to search, links to traverse, rules to check, and (if you modelled the verbs) actions to invoke — each inheriting the same permissions a human would have.</p>
+  <div class="stepper" data-stepper>
+    <div class="head"><span class="ttl">ONE AGENT LOOP, OVER THE ONTOLOGY</span><span class="counter"></span></div>
+    <div class="stage">
+
+      <!-- 1 -->
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:flex-start;">
+            <div class="scol" style="max-width:290px;">
+              <div class="colcap">loaded before the agent does anything</div>
+              <div class="md k2">
+<span class="fn">the prompt</span>
+<div class="mtx"><span class="mh1">system</span> — you answer questions about</div>
+<div class="mtx">&nbsp;&nbsp;the supply chain. Use the tools.</div>
+<div class="mtx"><span class="mh1">ontology</span> — 5 classes, 5 links,</div>
+<div class="mtx">&nbsp;&nbsp;12 rules. <span class="mcm">the whole schema</span></div>
+<div class="mtx"><span class="mh1">tools</span> — search_objects, traverse,</div>
+<div class="mtx">&nbsp;&nbsp;aggregate, notifyCustomer</div>
+<div class="mtx"><span class="mh1">user</span> — "Kessler slipped a week.</div>
+<div class="mtx">&nbsp;&nbsp;What's at risk, can we cover it?"</div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:280px;">
+              <div class="colcap">the agent's context window</div>
+              <div class="ctxwin">
+                <div class="cwh"><span>contents</span><span>approx</span></div>
+                <div class="cwrow"><i class="cwbar" style="background:var(--cn)"></i><span class="cwt">system prompt</span><span class="cwn">0.2k</span></div>
+                <div class="cwrow new"><i class="cwbar" style="background:var(--c2)"></i><span class="cwt">the ontology — all of it</span><span class="cwn">1.5k</span></div>
+                <div class="cwrow"><i class="cwbar" style="background:var(--cn)"></i><span class="cwt">4 tool definitions</span><span class="cwn">0.3k</span></div>
+                <div class="cwrow"><i class="cwbar" style="background:var(--cn)"></i><span class="cwt">the question</span><span class="cwn">30</span></div>
+                <div class="cwtot"><span>total</span><span>~2.0k tokens</span></div>
+              </div>
+              <div class="blbl" style="margin-top:9px;">the graph itself — 1.2M nodes,<br>4.8M edges — is <b>not</b> in here</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">1</span>Start with what's actually in the prompt. The <b>entire ontology fits</b> — a few classes and rules is a page of text. The knowledge graph it describes never enters context at all. That asymmetry is the whole trick: the agent <em>reasons over the model</em> and <em>queries the data</em>.</p>
+      </div>
+
+      <!-- 2 -->
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:flex-start;">
+            <div class="scol" style="max-width:215px;">
+              <div class="colcap">call 1 · resolve the name</div>
+              <div class="callp"><span class="fnm">search_objects</span>(
+  <span class="arg">type</span>: "Supplier",
+  <span class="arg">match</span>: "Kessler"
+)</div>
+              <div class="blbl" style="margin-top:8px;">it knows <code>Supplier</code> is a real<br>class — that came from the<br>schema in step 1</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:225px;">
+              <div class="colcap">returns · a typed object</div>
+              <div class="md k1">
+<span class="fn">1 match</span>
+<div class="mtx">{ id: <span class="mval">"supplier/kessler-gmbh"</span>,</div>
+<div class="mtx">&nbsp;&nbsp;type: <span class="mval">"Supplier"</span>,</div>
+<div class="mtx">&nbsp;&nbsp;name: <span class="mval">"Kessler GmbH"</span>,</div>
+<div class="mtx">&nbsp;&nbsp;supplies: <span class="mval">14</span> Parts }</div>
+              </div>
+            </div>
+            <div class="ar">+</div>
+            <div class="scol" style="max-width:215px;">
+              <div class="colcap">context now</div>
+              <div class="ctxwin">
+                <div class="cwrow"><i class="cwbar" style="background:var(--cn)"></i><span class="cwt">prompt + schema + tools</span><span class="cwn">2.0k</span></div>
+                <div class="cwrow new"><i class="cwbar" style="background:var(--c1)"></i><span class="cwt">1 resolved Supplier</span><span class="cwn">40</span></div>
+                <div class="cwtot"><span>total</span><span>~2.0k</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">2</span>First move is always <b>resolve, never guess</b>. The agent turns the string "Kessler" into a real object with a real ID, and every later call keys off that ID. Forty tokens back — one object, not a page of search results.</p>
+      </div>
+
+      <!-- 3 -->
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:flex-start;">
+            <div class="scol" style="max-width:235px;">
+              <div class="colcap">call 2 · walk the model</div>
+              <div class="callp"><span class="fnm">traverse</span>(
+  <span class="arg">from</span>: "supplier/kessler-gmbh",
+  <span class="arg">path</span>: "supplies / subpart_of*
+          / used_in / contains",
+  <span class="arg">return</span>: ["Order", "Customer"]
+)</div>
+              <div class="blbl" style="margin-top:8px;">the path is <b>named edges from<br>the ontology</b> — the agent can<br>only ask for links that exist</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:250px;">
+              <div class="colcap">what the store actually runs</div>
+              <div class="md k2">
+<span class="fn">compiled query</span>
+<div class="mtx">SELECT ?order ?customer WHERE {</div>
+<div class="mtx">&nbsp;:kessler-gmbh <span class="mkey">:supplies</span> ?part .</div>
+<div class="mtx">&nbsp;?part <span class="mkey">:subpart_of*</span> ?assy .</div>
+<div class="mtx">&nbsp;?assy <span class="mkey">:used_in</span> ?product .</div>
+<div class="mtx">&nbsp;?order <span class="mkey">:contains</span> ?product ;</div>
+<div class="mtx">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="mkey">:placed_by</span> ?customer . }</div>
+              </div>
+              <div class="blbl" style="margin-top:8px;"><code>*</code> = any depth, so a bearing<br>four sub-assemblies deep still<br>reaches its order</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">3</span>Here's what <code>traverse</code> really is: the agent names a <b>path through the ontology</b>, and the engine compiles it into a graph query. It can write the whole path in one call here <em>because the model is tiny</em> — five classes, one sensible route from Supplier to Customer, and all of it in context since step 1. That <code>subpart_of*</code> is the transitivity rule from §07, so the agent never has to know how deep the assembly tree goes.</p>
+      </div>
+
+      <!-- 4 -->
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:flex-start;">
+            <div class="scol" style="max-width:255px;">
+              <div class="colcap">returns · endpoints + the path taken</div>
+              <div class="md k1">
+<span class="fn">traverse result</span>
+<div class="mtx">{ orders: [<span class="mval">8812, 8840, 8851</span>],</div>
+<div class="mtx">&nbsp;&nbsp;customers: [</div>
+<div class="mtx">&nbsp;&nbsp;&nbsp;{id:<span class="mval">"cust/halden-marine"</span>, tier:<span class="mval">1</span>},</div>
+<div class="mtx">&nbsp;&nbsp;&nbsp;{id:<span class="mval">"cust/nordvik-as"</span>, tier:<span class="mval">1</span>}],</div>
+<div class="mtx">&nbsp;&nbsp;via: <span class="mcm">"supplies → subpart_of*</span></div>
+<div class="mtx">&nbsp;&nbsp;&nbsp;&nbsp;<span class="mcm">→ used_in → contains"</span> }</div>
+              </div>
+              <div class="blbl" style="margin-top:8px;">4.8M edges scanned in the store ·<br><b>5 objects</b> come back</div>
+            </div>
+            <div class="ar">+</div>
+            <div class="scol" style="max-width:230px;">
+              <div class="colcap">context now</div>
+              <div class="ctxwin">
+                <div class="cwrow"><i class="cwbar" style="background:var(--cn)"></i><span class="cwt">prompt + schema + tools</span><span class="cwn">2.0k</span></div>
+                <div class="cwrow"><i class="cwbar" style="background:var(--c1)"></i><span class="cwt">1 resolved Supplier</span><span class="cwn">40</span></div>
+                <div class="cwrow new"><i class="cwbar" style="background:var(--c4)"></i><span class="cwt">3 Orders, 2 Customers, + path</span><span class="cwn">90</span></div>
+                <div class="cwtot"><span>total</span><span>~2.1k</span></div>
+              </div>
+              <div class="blbl" style="margin-top:9px;">the <code>via</code> string is the receipt —<br>it's what makes the final<br>answer auditable</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">4</span>Only the <b>endpoints</b> come back, plus the path that produced them. Millions of edges were walked inside the store; ninety tokens crossed into the model. And because the traversal is recorded, every claim downstream can be traced back to it.</p>
+      </div>
+
+      <!-- 5 -->
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:flex-start;">
+            <div class="scol" style="max-width:245px;">
+              <div class="colcap">call 3 · get the number</div>
+              <div class="callp"><span class="fnm">aggregate</span>(
+  <span class="arg">over</span>: [8812, 8840, 8851],
+  <span class="arg">metric</span>: "sum(Order.value)",
+  <span class="arg">where</span>: "status != shipped"
+)</div>
+              <div class="md k1" style="margin-top:9px;">
+<span class="fn">returns</span>
+<div class="mtx">{ sum: <span class="mval">1240000</span>, currency: <span class="mval">"EUR"</span>,</div>
+<div class="mtx">&nbsp;&nbsp;n: <span class="mval">3</span>, definition: <span class="mcm">"exposed"</span> }</div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:250px;">
+              <div class="colcap">the point</div>
+              <div class="stack" style="gap:7px; align-items:stretch;">
+                <div class="pill" style="margin:0; border-color:var(--c1); color:var(--c1); font-size:12.5px;">the store did the arithmetic</div>
+                <div class="pill" style="margin:0; opacity:.5; font-size:12.5px;">the model did not add anything up</div>
+              </div>
+              <div class="blbl" style="margin-top:10px;">so the figure is the same on every<br>run, and "exposed" means the one<br>thing the ontology says it means</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">5</span>The euro figure is <b>computed, not generated</b>. An LLM asked to total three order values will usually get it right and occasionally won't; a store asked the same question is right every time. This is the §07 aggregation case, and it's why a defined metric beats a clever prompt.</p>
+      </div>
+
+      <!-- 6 -->
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:flex-start;">
+            <div class="scol" style="max-width:265px;">
+              <div class="colcap">everything the model has, before answering</div>
+              <div class="ctxwin">
+                <div class="cwh"><span>contents</span><span>approx</span></div>
+                <div class="cwrow"><i class="cwbar" style="background:var(--cn)"></i><span class="cwt">system prompt</span><span class="cwn">0.2k</span></div>
+                <div class="cwrow"><i class="cwbar" style="background:var(--c2)"></i><span class="cwt">the ontology</span><span class="cwn">1.5k</span></div>
+                <div class="cwrow"><i class="cwbar" style="background:var(--cn)"></i><span class="cwt">tool definitions + question</span><span class="cwn">0.3k</span></div>
+                <div class="cwrow"><i class="cwbar" style="background:var(--c1)"></i><span class="cwt">1 Supplier</span><span class="cwn">40</span></div>
+                <div class="cwrow"><i class="cwbar" style="background:var(--c4)"></i><span class="cwt">3 Orders, 2 Customers, + path</span><span class="cwn">90</span></div>
+                <div class="cwrow"><i class="cwbar" style="background:var(--c5)"></i><span class="cwt">1 aggregate</span><span class="cwn">20</span></div>
+                <div class="cwtot"><span>total</span><span>~2.2k tokens</span></div>
+              </div>
+            </div>
+            <div class="ar">vs</div>
+            <div class="scol" style="max-width:235px;">
+              <div class="colcap">what plain RAG would have loaded</div>
+              <div class="ctxwin">
+                <div class="cwh"><span>contents</span><span>approx</span></div>
+                <div class="cwrow"><i class="cwbar" style="background:var(--cn)"></i><span class="cwt">~60 chunks of tickets, emails, specs</span><span class="cwn">45k</span></div>
+                <div class="cwtot"><span>total</span><span>~45k tokens</span></div>
+              </div>
+              <div class="blbl" style="margin-top:10px; color:var(--c4);">…with no guarantee the chain from<br>Kessler to Halden Marine is<br>spelled out in any single chunk</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">6</span>Pause here, because this is the argument. Three tool calls put <b>six typed facts and one number</b> in front of the model — no prose, no chunks, nothing to misread. The agent has never read a document.</p>
+      </div>
+
+      <!-- 7 -->
+      <div class="step">
+        <div class="viz">
+          <div class="split" style="align-items:flex-start;">
+            <div class="scol" style="max-width:185px;">
+              <div class="colcap">call 4 · the write</div>
+              <div class="callp"><span class="fnm">notifyCustomer</span>(
+  <span class="arg">order</span>: 8812,
+  <span class="arg">reason</span>: "supplier delay"
+)</div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:175px;">
+              <div class="agentbox" style="border-color:var(--c4);">
+                <div class="agent-chip" style="color:var(--c4);"><svg width="13" height="12" viewBox="0 0 14 12" fill="none"><path d="M7 1 L8.3 4.7 L12 6 L8.3 7.3 L7 11 L5.7 7.3 L2 6 L5.7 4.7 Z" fill="var(--c4)"/></svg>Gate</div>
+                <div class="toolset">
+                  <div class="tool" style="border-color:var(--c1); color:var(--c1);">✓ valid for Order</div>
+                  <div class="tool" style="border-color:var(--c1); color:var(--c1);">✓ caller may message</div>
+                  <div class="tool" style="border-color:var(--c4); color:var(--c4);">⚑ tier-1 → sign-off</div>
+                </div>
+              </div>
+            </div>
+            <div class="ar">→</div>
+            <div class="scol" style="max-width:250px;">
+              <div class="colcap">final answer, grounded</div>
+              <div class="md k1">
+<span class="fn">to the user</span>
+<div class="mtx">Three orders are exposed —</div>
+<div class="mtx">8812, 8840, 8851 — worth</div>
+<div class="mtx"><span class="mval">€1.24M</span>, hitting <span class="mval">Halden Marine</span></div>
+<div class="mtx">and <span class="mval">Nordvik AS</span>, both tier-1.</div>
+<div class="mtx">A delay notice for 8812 is</div>
+<div class="mtx">drafted and waiting on you.</div>
+<div class="mtx"><span class="mcm">via supplies → subpart_of*</span></div>
+<div class="mtx"><span class="mcm">&nbsp;&nbsp;→ used_in → contains</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="cap"><span class="n">7</span>The write is checked against the schema, the <b>caller's own permissions</b>, and a policy — then staged, not fired. The answer carries its traversal path, so anyone can check the reasoning instead of trusting it. <b>The agent proposes; the model and a human dispose.</b></p>
+      </div>
+
+    </div>
+    <div class="controls"><div class="dots"></div></div>
+  </div>
+  <div class="note"><b>About that <code>traverse</code> call.</b> Two honest caveats, since the shape of it is doing a lot of work here. <b>The signature is illustrative</b> — there is no standard traverse API — though the path string itself is real: <code>supplies/subpart_of*/used_in/contains</code> is SPARQL property-path syntax, where <code>/</code> means "then" and <code>*</code> means "any number of times". Neo4j's <code>apoc.path.expand</code> takes much the same arguments. The common alternative is a plain <em>depth</em> argument — "everything within three hops" — which is simpler but drags every unrelated neighbour into context; naming the path and the return types is what keeps the answer down to five objects. <b>And it rarely composes in one call</b> once a model has hundreds of classes. Expect instead: the agent walking a hop at a time, picking the next from whatever came back; asking the schema what links out of <code>Supplier</code> before planning; letting the engine solve the route with something like <code>path_between(Supplier, Customer)</code>; or — most common in production — calling <code>impactOf(supplier)</code>, a traversal some human authored once. That last one is the least glamorous and by far the most reliable.</div>
+  <p>That staged-write pattern is the core of what Palantir calls <a href="https://blog.palantir.com/connecting-agents-to-decisions-277dee8ddb40" target="_blank" rel="noopener">connecting agents to decisions</a> — proposed changes packaged into a sandboxed scenario, with the same row- and column-level policies applied to an agent as to a person. You don't need their platform to copy the shape: typed tools, permissions inherited from the caller, writes staged not executed.</p>
+
+  <h3>The data-query numbers</h3>
+  <p>Here's the evidence I find most persuasive, and it's a clean progression. Sequeda and colleagues built <a href="https://arxiv.org/abs/2311.07509" target="_blank" rel="noopener">a benchmark</a> on a real insurance schema — 13 gnarly tables of policies, claims and coverages — and asked GPT-4 enterprise questions two ways: writing SQL straight against the tables, or writing SPARQL against a knowledge graph with an OWL ontology over the same data. Then a <a href="https://arxiv.org/abs/2405.11706" target="_blank" rel="noopener">follow-up</a> added a checker that uses the ontology to catch queries that are semantically wrong, and lets an LLM repair them in a loop:</p>
+  <div class="diagram">
+    <div class="bench">
+      <div class="brow"><span class="blab">SQL, straight at the tables</span><span class="btrack"><i style="width:16%; background:var(--c4)"></i></span><span class="bval">16%</span></div>
+      <div class="brow"><span class="blab">over a knowledge graph + ontology</span><span class="btrack"><i style="width:54%; background:var(--c2)"></i></span><span class="bval">54%</span></div>
+      <div class="brow"><span class="blab">+ ontology query check &amp; repair</span><span class="btrack"><i style="width:72%; background:var(--c1)"></i></span><span class="bval">72%</span></div>
+    </div>
+    <p class="muted" style="font-size:12.5px; text-align:center; margin:16px auto 0; max-width:520px;">Same questions, same data, same model. The last bar includes 8% that the system answered with an honest "I don't know" rather than a guess.</p>
+  </div>
+  <p>Two things stand out. First, 16% to 54% is not a tweak — that's the difference between unusable and useful, purely from giving the model a semantic model instead of raw column names. Second, look at that 8%: the checker's real contribution isn't only more right answers, it's <strong>converting some wrong answers into admitted ignorance</strong>, which in an enterprise is worth a great deal more than the accuracy points suggest.</p>
+  <p>A caveat worth stating: these are single-benchmark results on one insurance schema, and frontier models have improved a lot since. dbt re-ran a similar comparison <a href="https://docs.getdbt.com/blog/semantic-layer-vs-text-to-sql-2026" target="_blank" rel="noopener">in 2026</a> and found raw text-to-SQL now lands at 84–90% while a governed semantic layer hits 98–100%. The gap narrowed — but their finding about <em>how the two fail</em> is the part that matters: the semantic layer refuses when a question is out of scope, while text-to-SQL returns a confident, plausible, wrong number. Note also that dbt's semantic layer is a metrics model, not an OWL ontology; it's a weaker artifact than what we've been discussing, which makes the direction of the result more telling, not less.</p>
+  <div class="note"><b>Where this genuinely doesn't help.</b> An ontology only covers the questions it was built for. Ask something outside its scope and a well-built system tells you it can't answer — which is the correct behaviour, but it's still a "no". If your users ask wide-open exploratory questions across data you never modelled, you'll be back to text-to-SQL and its confident guesses. Model the questions you actually have.</div>
+
+  <!-- ============ 9 ============ -->
+  <h2><span class="kicker">09 · Wrapping up</span>Should you build one?</h2>
+  <p>Ontologies are a 1990s idea that spent two decades being technically correct and practically ignored, because building and populating one cost more than it returned. Two things changed at once. LLMs made them far cheaper to build and populate — and, for the first time, gave us a consumer that's desperate to use one. Supply and demand for structure flipped together.</p>
+  <p>But let me be even-handed before the verdict, because I've mostly been selling the upside:</p>
+  <div class="compare">
+    <div class="col b">
+      <h4>What you get</h4>
+      <div class="tag">the upside</div>
+      <ul>
+        <li><strong>Shared meaning.</strong> One definition per concept across every system — the end of "whose number is right?"</li>
+        <li><strong>Inference.</strong> Facts nobody wrote down, derived from rules — blast radius, exposure, contradictions.</li>
+        <li><strong>Integration by mapping.</strong> Map each source once instead of building n² point-to-point joins.</li>
+        <li><strong>Grounded, explainable AI.</strong> Agents traverse typed edges and can show their path — a real answer to "why did it say that?"</li>
+      </ul>
+    </div>
+    <div class="col a">
+      <h4>What it costs</h4>
+      <div class="tag">the downside</div>
+      <ul>
+        <li><strong>Modelling judgement is still scarce.</strong> The blank-page tax is lower now, not gone — an LLM drafts fast, but deciding what's actually true about your business stays a human job.</li>
+        <li><strong>Extraction quality is the ceiling.</strong> Pulling relationships out of documents is far harder than pulling out entities, and your graph is only as good as its edges.</li>
+        <li><strong>Governance forever.</strong> An unmaintained ontology rots exactly like an unmaintained wiki — stale, contradictory, quietly wrong.</li>
+        <li><strong>Over-engineering.</strong> Modelling the universe before answering one question. Analysis paralysis with a standards body attached.</li>
+      </ul>
+    </div>
+  </div>
+  <p>So — should you build one? The call on one screen:</p>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th>Situation</th><th>Verdict</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Recurring "whose definition is right?" fights across teams</td>
+          <td><span class="tg ok">Build one</span></td>
+          <td>A shared semantic layer is exactly the fix, and the pain is already paying for it</td>
+        </tr>
+        <tr>
+          <td>Questions that hop across systems — impact, exposure, dependency</td>
+          <td><span class="tg ok">Build one</span></td>
+          <td>Inference over typed edges is the thing a pile of tables genuinely cannot do</td>
+        </tr>
+        <tr>
+          <td>Agents answering data questions where a wrong number is expensive</td>
+          <td><span class="tg hy">Probably</span></td>
+          <td>Big accuracy gain, and more importantly it can say "I don't know" instead of guessing</td>
+        </tr>
+        <tr>
+          <td>Open-ended exploration across data you haven't modelled</td>
+          <td><span class="tg k5">Not yet</span></td>
+          <td>An ontology only answers what it covers; you'd hit "out of scope" constantly</td>
+        </tr>
+        <tr>
+          <td>One app, one clean schema, no cross-system questions</td>
+          <td><span class="tg no">Skip it</span></td>
+          <td>A database already models this fine — this would be overhead with no payoff</td>
+        </tr>
+        <tr>
+          <td>You want to "model everything" before shipping anything</td>
+          <td><span class="tg no">Stop</span></td>
+          <td>That's the ocean-boiling trap. Pick one question and model only what answers it</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>If I compress it to one path: write down the <em>questions</em> first, model only the classes those questions need, let an LLM fill the graph but validate every triple on the way in, keep a human on the axioms, and put it in front of a real query before it's pretty. The teams that succeed treat the ontology as a product with an owner, not a project with an end date — and they start absurdly small.</p>
+  <p><strong>Model the questions you have, not the world you imagine.</strong></p>
+
+  <p class="muted" style="font-size:14px; margin-top:36px;">These are living notes — I'll keep updating as the pattern matures. Thanks for reading.</p>
+
+</div>
+
+<script>
+/* ---- keep the embedded blog in sync with the site's light/dark toggle ---- */
+(function(){
+  var root = document.documentElement;
+  try{
+    var saved = localStorage.getItem('kh-theme');
+    root.setAttribute('data-theme', saved || 'light');
+  }catch(e){}
+  window.addEventListener('storage', function(e){
+    if(e.key === 'kh-theme') root.setAttribute('data-theme', e.newValue || 'light');
+  });
+})();
+
+/* ---- tell the parent page how tall this embed is, so the iframe never clips ---- */
+function reportHeight(){
+  var h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+  if(h <= 0) return;
+  try{ if(window.frameElement){ window.frameElement.style.height = h + 'px'; } }catch(e){}
+  try{ if(window.parent && window.parent !== window){ window.parent.postMessage({type:'kh-embed-height', height:h}, '*'); } }catch(e){}
+}
+window.addEventListener('load', reportHeight);
+window.addEventListener('resize', reportHeight);
+[100,400,900,1600].forEach(function(t){ setTimeout(reportHeight, t); });
+
+/* ---- reusable stepper ---- */
+document.querySelectorAll('[data-stepper]').forEach(function(sp){
+  var steps = Array.prototype.slice.call(sp.querySelectorAll('.step'));
+  if(!steps.length) return;
+  var prev = sp.querySelector('[data-prev]');
+  var next = sp.querySelector('[data-next]');
+  var dotsWrap = sp.querySelector('.dots');
+  var counter = sp.querySelector('.counter');
+  var i = 0;
+
+  steps.forEach(function(_, idx){
+    var d = document.createElement('button');
+    d.className = 'dot'; d.type = 'button';
+    d.setAttribute('aria-label', 'Go to step ' + (idx+1));
+    d.addEventListener('click', function(){ go(idx); });
+    dotsWrap.appendChild(d);
+  });
+  var dots = Array.prototype.slice.call(dotsWrap.children);
+
+  function go(n){
+    i = Math.max(0, Math.min(steps.length-1, n));
+    steps.forEach(function(s, idx){ s.classList.toggle('active', idx===i); });
+    dots.forEach(function(d, idx){ d.classList.toggle('on', idx===i); });
+    if(prev) prev.disabled = (i===0);
+    if(next) next.disabled = (i===steps.length-1);
+    if(counter) counter.textContent = 'Step ' + (i+1) + ' / ' + steps.length;
+    reportHeight();
+  }
+  if(prev) prev.addEventListener('click', function(){ go(i-1); });
+  if(next) next.addEventListener('click', function(){ go(i+1); });
+  sp.tabIndex = 0;
+  sp.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowLeft'){ go(i-1); e.preventDefault(); }
+    else if(e.key === 'ArrowRight'){ go(i+1); e.preventDefault(); }
+  });
+  go(0);
+});
+</script>
+</body>
+</html>
