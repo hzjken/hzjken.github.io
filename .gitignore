@@ -229,3 +229,5 @@ vendor/
 embeds/
 .claude/
 /*.html
+.workbuddy/
+.workbuddy-ai/

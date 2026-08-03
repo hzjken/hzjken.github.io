@@ -267,7 +267,7 @@ tr td:first-child{font-weight:600; white-space:nowrap;}
 
   <!-- ============ 1 ============ -->
   <h2><span class="kicker">01 · The pitch</span>PageIndex throws away the vector database</h2>
-  <p>My <a href="https://hzjken.github.io/graphrag-and-raptor.html" target="_blank" rel="noopener">last post</a> walked a progression: plain RAG, then RAPTOR, then GraphRAG — each one adding more structure on top of the last. But look closely and the <em>foundation</em> never moved. All of them share the same underlying engine: chop text into chunks, turn them into vectors, match by similarity.</p>
+  <p>My <a href="https://hzjken.dev/graphrag-and-raptor.html" target="_blank" rel="noopener">last post</a> walked a progression: plain RAG, then RAPTOR, then GraphRAG — each one adding more structure on top of the last. But look closely and the <em>foundation</em> never moved. All of them share the same underlying engine: chop text into chunks, turn them into vectors, match by similarity.</p>
   <p><strong>PageIndex</strong> — from <a href="https://pageindex.ai/" target="_blank" rel="noopener">Vectify AI</a>, open-sourced in September 2025 — asks a more heretical question: what if we skip that engine? Its pitch is right on the tin: <strong>no embeddings, no chunking, no vector DB.</strong> Instead of shredding your document into a pile of vectors, it turns it into something you already understand — a <strong>table of contents</strong> — and instead of matching a query by similarity, it hands that table of contents to an LLM and lets it <em>reason</em> about where to look, the way you'd flip through a report yourself.</p>
   
   <!-- ============ 2 ============ -->
@@ -827,7 +827,7 @@ tr td:first-child{font-weight:600; white-space:nowrap;}
             <div class="lane pageindex"><div class="lname">PageIndex</div><div class="lbody">Hand the whole tree to an LLM; it <b>reasons</b> which sections to open. No embedding at all.</div><div class="verdict-chip vc-good">reasoning</div></div>
           </div>
         </div>
-        <p class="cap"><span class="n">3</span><b>Three of the four still bottom out in a vector.</b> RAG and RAPTOR rank by cosine; GraphRAG's local search starts with an entity-embedding lookup, then walks edges mechanically. PageIndex never embeds anything — retrieval is an LLM <em>reasoning</em> over structure, in the spirit of the <a href="https://hzjken.github.io/llm-wiki.html" target="_blank" rel="noopener">LLM wiki</a>'s agent deciding which page to read next.</p>
+        <p class="cap"><span class="n">3</span><b>Three of the four still bottom out in a vector.</b> RAG and RAPTOR rank by cosine; GraphRAG's local search starts with an entity-embedding lookup, then walks edges mechanically. PageIndex never embeds anything — retrieval is an LLM <em>reasoning</em> over structure, in the spirit of the <a href="https://hzjken.dev/llm-wiki.html" target="_blank" rel="noopener">LLM wiki</a>'s agent deciding which page to read next.</p>
       </div>
       <div class="step">
         <div class="viz">

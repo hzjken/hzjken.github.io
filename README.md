@@ -37,7 +37,7 @@ it locally, run the same step the CI runs, then restore the clean mounts when do
 
 ## Deploy to GitHub Pages
 Deployment is automatic: every push to `main` triggers `.github/workflows/pages.yml`, which inlines
-the sidebar and publishes to `https://hzjken.github.io/`. Pages is configured with
+the sidebar and publishes to `https://hzjken.dev/`. Pages is configured with
 **Settings → Pages → Source: GitHub Actions**. No manual steps.
 
 ## Writing a blog post
