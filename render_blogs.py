@@ -16,8 +16,11 @@ Running this (CI does it automatically; run it yourself to preview):
 Operates on the current directory by default, or on the dir passed as argv[1].
 Safe to re-run: it only rewrites content between the <!--X:START-->/<!--X:END--> markers.
 """
-import sys, os, re, glob, html
+import sys, os, re, glob, html, json
 from datetime import datetime
+
+SITE = "https://hzjken.dev"
+AUTHOR = "Ken Huang"
 
 try:
     import markdown
@@ -35,8 +38,22 @@ HEAD = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-<title>{title} — Ken Huang</title>
+<title>{title} — {author}</title>
 <meta name="description" content="{desc}">
+<meta name="author" content="{author}">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="{canonical}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="{author}">
+<meta property="og:title" content="{og_title}">
+<meta property="og:description" content="{desc}">
+<meta property="og:url" content="{canonical}">
+<meta property="article:published_time" content="{iso_date}">
+<meta property="article:modified_time" content="{iso_modified}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{og_title}">
+<meta name="twitter:description" content="{desc}">
+{jsonld}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -195,22 +212,72 @@ def main():
         cat = p["tags"][0] if p["tags"] else "Note"
         tags_foot = (f'      <div class="tags-foot">{chips(p["tags"])}</div>\n'
                      if p["tags"] else "")
+        canonical = f"{SITE}/{p['slug']}.html"
+        iso_date = p["date"]
+        iso_modified = p.get("updated") or p["date"]
+        jsonld = (
+            '<script type="application/ld+json">'
+            + json.dumps({
+                "@context": "https://schema.org",
+                "@type": "BlogPosting",
+                "headline": p["title"],
+                "description": p.get("description", ""),
+                "datePublished": iso_date,
+                "dateModified": iso_modified,
+                "inLanguage": "en",
+                "mainEntityOfPage": {"@type": "WebPage", "@id": canonical},
+                "url": canonical,
+                "author": {"@type": "Person", "name": AUTHOR, "url": SITE + "/"},
+                "publisher": {"@type": "Person", "name": AUTHOR, "url": SITE + "/"},
+            }, ensure_ascii=False)
+            + '</script>'
+        )
         if p["kind"] == "md":
             body = render_markdown(p["raw"])
             wide, fmt = "", "Markdown"
         else:
             os.makedirs(os.path.join(BASE, "embeds"), exist_ok=True)
+            raw = p["raw"]
+            head_idx = raw.find("<head>")
+            if head_idx != -1:
+                head_idx += len("<head>")
+                raw = (raw[:head_idx]
+                       + '\n<meta name="robots" content="noindex,follow">'
+                       + raw[head_idx:])
             open(os.path.join(BASE, "embeds", p["slug"] + ".html"), "w",
-                 encoding="utf-8").write(p["raw"])
+                 encoding="utf-8").write(raw)
             body = (f'      <figure style="margin:8px 0 0;width:100%">\n'
                     f'        <iframe class="embed-frame" src="embeds/{p["slug"]}.html" '
                     f'title="{esc(p["title"])}" scrolling="no" '
                     f'style="width:100%;height:1400px;"></iframe>\n      </figure>')
             wide, fmt = " wide", "HTML embed"
-        page = HEAD.format(title=esc(p["title"]), desc=esc(p.get("description", "")),
+        page = HEAD.format(title=esc(p["title"]), author=AUTHOR,
+                           desc=esc(p.get("description", "")), canonical=esc(canonical),
+                           og_title=esc(p["title"]), iso_date=iso_date,
+                           iso_modified=iso_modified, jsonld=jsonld,
                            wide=wide, cat=esc(cat), date=fmt_date(p["date"]),
                            mins=p["mins"], fmt=fmt, body=body, tags_foot=tags_foot)
         open(os.path.join(BASE, p["slug"] + ".html"), "w", encoding="utf-8").write(page)
+
+    # sitemap.xml + robots.txt
+    today = datetime.today().strftime("%Y-%m-%d")
+    urls = [
+        (SITE + "/", today, "daily", "1.0"),
+        (SITE + "/blogs.html", today, "weekly", "0.9"),
+        (SITE + "/projects.html", today, "monthly", "0.6"),
+    ]
+    for p in posts:
+        urls.append((f"{SITE}/{p['slug']}.html", p["date"], "monthly", "0.8"))
+    locs = "".join(
+        f'  <url><loc>{esc(u)}</loc><lastmod>{d}</lastmod>'
+        f'<changefreq>{c}</changefreq><priority>{pr}</priority></url>\n'
+        for u, d, c, pr in urls)
+    sitemap = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+               '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+               + locs + '</urlset>\n')
+    open(os.path.join(BASE, "sitemap.xml"), "w", encoding="utf-8").write(sitemap)
+    robots = "User-agent: *\nAllow: /\n\nSitemap: " + SITE + "/sitemap.xml\n"
+    open(os.path.join(BASE, "robots.txt"), "w", encoding="utf-8").write(robots)
 
     # blog list rows + tag filters
     rows = []
