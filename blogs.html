@@ -34,7 +34,9 @@
       <div class="search"><span>⌕</span><input id="q" type="search" placeholder="Search posts…" autocomplete="off"></div>
     </div>
 
-    <div class="filter-row" id="filters"><!--FILTERS:START--><!--FILTERS:END--></div>
+    <div class="filter-row" id="seriesFilters">
+      <span class="filter-label">Series</span><!--SERIESFILTERS:START--><!--SERIESFILTERS:END-->
+    </div>
 
     <div id="posts"><!--POSTS:START--><!--POSTS:END--></div>
     <p class="no-results" id="noResults">No posts match your search.</p>
@@ -45,10 +47,10 @@
 <script>
 (function () {
   var q = document.getElementById('q');
-  var chips = [].slice.call(document.querySelectorAll('#filters .chip'));
+  var seriesChips = [].slice.call(document.querySelectorAll('#seriesFilters .series-chip'));
   var rows = [].slice.call(document.querySelectorAll('#posts .post-row'));
   var noResults = document.getElementById('noResults');
-  var activeTag = 'all';
+  var activeSeries = 'all';
 
   function apply() {
     var term = (q.value || '').trim().toLowerCase();
@@ -56,24 +58,35 @@
     rows.forEach(function (r) {
       var tags = (r.getAttribute('data-tags') || '').toLowerCase();
       var title = (r.getAttribute('data-title') || '').toLowerCase();
-      var matchTag = activeTag === 'all' || tags.indexOf(activeTag.toLowerCase()) !== -1;
+      var series = (r.getAttribute('data-series') || 'notes').toLowerCase();
+      var matchSeries = activeSeries === 'all' || series === activeSeries.toLowerCase();
       var matchTerm = !term || title.indexOf(term) !== -1 || tags.indexOf(term) !== -1;
-      var show = matchTag && matchTerm;
+      var show = matchSeries && matchTerm;
       r.style.display = show ? '' : 'none';
       if (show) shown++;
     });
     noResults.style.display = shown ? 'none' : 'block';
   }
 
-  chips.forEach(function (c) {
+  seriesChips.forEach(function (c) {
     c.addEventListener('click', function () {
-      chips.forEach(function (x) { x.classList.remove('active'); });
+      seriesChips.forEach(function (x) { x.classList.remove('active'); });
       c.classList.add('active');
-      activeTag = c.getAttribute('data-tag');
+      activeSeries = c.getAttribute('data-series');
       apply();
     });
   });
   q.addEventListener('input', apply);
+
+  // deep-link: blogs.html?series=<slug> (e.g. from "What I write about")
+  var m = (location.search || '').match(/[?&]series=([^&]+)/);
+  if (m) {
+    var want = m[1].toLowerCase();
+    var chip = seriesChips.filter(function (c) {
+      return c.getAttribute('data-series').toLowerCase() === want;
+    })[0];
+    if (chip) chip.click();
+  }
 })();
 </script>
 </body>
